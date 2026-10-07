@@ -1,0 +1,6 @@
+{
+  "name": "GearLoop - Campus Gear Exchange",
+  "description": "The campus collective to rent what you need and lend what you're not using with timestamped custody stamps and zero deposit awkwardness.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

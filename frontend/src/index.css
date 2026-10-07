@@ -1,0 +1,175 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #094d48;
+  --color-primary-container: #2a6560;
+  --color-primary-fixed: #b2eee7;
+  --color-primary-fixed-dim: #97d1cb;
+  --color-on-primary: #ffffff;
+  --color-on-primary-container: #a5e0d9;
+  --color-on-primary-fixed: #00201e;
+  --color-on-primary-fixed-variant: #0e4f4b;
+
+  --color-secondary: #994531;
+  --color-secondary-container: #fd947b;
+  --color-secondary-fixed: #ffdad2;
+  --color-secondary-fixed-dim: #ffb4a3;
+  --color-on-secondary: #ffffff;
+  --color-on-secondary-container: #762b1a;
+  --color-on-secondary-fixed: #3d0600;
+  --color-on-secondary-fixed-variant: #7a2e1d;
+
+  --color-tertiary: #3b445e;
+  --color-tertiary-container: #525b77;
+  --color-tertiary-fixed: #dae2ff;
+  --color-tertiary-fixed-dim: #bdc6e6;
+  --color-on-tertiary: #ffffff;
+  --color-on-tertiary-container: #cbd3f4;
+  --color-on-tertiary-fixed: #111b33;
+  --color-on-tertiary-fixed-variant: #3d4661;
+
+  --color-surface: #fdf9f1;
+  --color-surface-bright: #fdf9f1;
+  --color-surface-dim: #dddad2;
+  --color-surface-variant: #e6e2da;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f7f3eb;
+  --color-surface-container: #f1ede6;
+  --color-surface-container-high: #ece8e0;
+  --color-surface-container-highest: #e6e2da;
+  --color-surface-tint: #2d6862;
+
+  --color-on-surface: #1c1c17;
+  --color-on-surface-variant: #404947;
+  --color-inverse-surface: #31302b;
+  --color-inverse-on-surface: #f4f0e8;
+  --color-inverse-primary: #97d1cb;
+
+  --color-outline: #707977;
+  --color-outline-variant: #bfc8c6;
+
+  --color-error: #ba1a1a;
+  --color-error-container: #ffdad6;
+  --color-on-error: #ffffff;
+  --color-on-error-container: #93000a;
+
+  --spacing-space-xs: 0.25rem;
+  --spacing-space-sm: 0.5rem;
+  --spacing-space-md: 1rem;
+  --spacing-space-lg: 1.5rem;
+  --spacing-space-xl: 2.5rem;
+  --spacing-gutter: 1.5rem;
+  --spacing-margin: 2rem;
+
+  --font-headline: "Space Grotesk", sans-serif;
+  --font-body: "DM Sans", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+  --font-label-stamp: "JetBrains Mono", monospace;
+  --font-headline-xl: "Space Grotesk", sans-serif;
+  --font-headline-lg: "Space Grotesk", sans-serif;
+  --font-headline-md: "Space Grotesk", sans-serif;
+  --font-headline-sm: "Space Grotesk", sans-serif;
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    font-family: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--color-on-surface);
+    background: linear-gradient(180deg, #f7f3eb 0%, #f4f6f4 100%);
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  img {
+    display: block;
+    max-width: 100%;
+  }
+}
+
+.font-headline-xl {
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.font-headline-lg {
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.font-headline-md {
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.font-headline-sm {
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 600;
+}
+
+.font-label-stamp {
+  font-family: "JetBrains Mono", monospace;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+}
+
+.font-label-eyebrow {
+  font-family: "JetBrains Mono", monospace;
+  letter-spacing: 0.1em;
+  font-weight: 600;
+}
+
+.font-label-btn {
+  font-family: "DM Sans", sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(112, 121, 119, 0.25);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(112, 121, 119, 0.45);
+}
