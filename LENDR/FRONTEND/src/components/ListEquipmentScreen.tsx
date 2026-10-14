@@ -66,12 +66,112 @@ const CONDITION_DESCRIPTIONS: Record<string, { label: string; desc: string; colo
 const CATEGORY_PRICING_GUIDANCE: Record<string, { range: string; deposit: string }> = {
   cameras: { range: '₹350 - ₹750/day', deposit: '₹0 for verified students or ₹500 token' },
   audio: { range: '₹120 - ₹250/day', deposit: '₹0 for verified students or ₹200 token' },
+  electronics: { range: '₹400 - ₹900/day', deposit: '₹500 - ₹1,000 security token' },
+  'event-equipment': { range: '₹250 - ₹500/day', deposit: '₹0 for verified students' },
+  'project-kits': { range: '₹60 - ₹180/day', deposit: '₹0 (Zero deposit recommended)' },
+  lighting: { range: '₹150 - ₹300/day', deposit: '₹0 for verified students' },
+  sports: { range: '₹100 - ₹250/day', deposit: '₹0 for verified students' },
+  academic: { range: '₹80 - ₹200/day', deposit: '₹0 for verified students' },
   drones: { range: '₹600 - ₹1,200/day', deposit: '₹500 - ₹1,000 security token' },
   projectors: { range: '₹250 - ₹500/day', deposit: '₹0 for verified students' },
   makers: { range: '₹50 - ₹150/day', deposit: '₹0 (Zero deposit recommended)' },
-  lighting: { range: '₹150 - ₹300/day', deposit: '₹0 for verified students' },
   outdoors: { range: '₹100 - ₹250/day', deposit: '₹0 for verified students' },
 };
+
+interface CategoryOption {
+  slug: string;
+  label: string;
+  desc: string;
+  icon: (active: boolean) => React.ReactNode;
+}
+
+const CATEGORY_OPTIONS: CategoryOption[] = [
+  {
+    slug: 'cameras',
+    label: 'Cameras & Lenses',
+    desc: 'Cinema bodies, primes, zooms, gimbals',
+    icon: (active) => (
+      <svg className={`w-5 h-5 ${active ? 'text-emerald-300' : 'text-[#0d382f]'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+        <circle cx="12" cy="13" r="3" strokeWidth="1.75" />
+      </svg>
+    ),
+  },
+  {
+    slug: 'audio',
+    label: 'Audio & Mics',
+    desc: 'Wireless lavs, shotguns, podcasts',
+    icon: (active) => (
+      <svg className={`w-5 h-5 ${active ? 'text-emerald-300' : 'text-[#0d382f]'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+      </svg>
+    ),
+  },
+  {
+    slug: 'electronics',
+    label: 'Drones & Electronics',
+    desc: 'FPV drones, action cams, telemetry',
+    icon: (active) => (
+      <svg className={`w-5 h-5 ${active ? 'text-emerald-300' : 'text-[#0d382f]'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+      </svg>
+    ),
+  },
+  {
+    slug: 'event-equipment',
+    label: 'Displays & Projectors',
+    desc: '4K monitors, projectors, screens',
+    icon: (active) => (
+      <svg className={`w-5 h-5 ${active ? 'text-emerald-300' : 'text-[#0d382f]'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75">
+        <rect x="2" y="3" width="20" height="14" rx="2" strokeWidth="1.75" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8 21h8m-4-4v4" />
+      </svg>
+    ),
+  },
+  {
+    slug: 'project-kits',
+    label: 'Makers & Kits',
+    desc: 'RPi, Jetson, Arduino, scopes',
+    icon: (active) => (
+      <svg className={`w-5 h-5 ${active ? 'text-emerald-300' : 'text-[#0d382f]'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75">
+        <rect x="4" y="4" width="16" height="16" rx="2" strokeWidth="1.75" />
+        <rect x="9" y="9" width="6" height="6" strokeWidth="1.75" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 1v3m6-3v3m-6 16v3m6-3v3M1 9h3m-3 6h3m16-6h3m-3 6h3" />
+      </svg>
+    ),
+  },
+  {
+    slug: 'lighting',
+    label: 'Studio Lighting',
+    desc: 'COB lights, softboxes, RGB wands',
+    icon: (active) => (
+      <svg className={`w-5 h-5 ${active ? 'text-emerald-300' : 'text-[#0d382f]'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+      </svg>
+    ),
+  },
+  {
+    slug: 'sports',
+    label: 'Sports & Outdoors',
+    desc: 'GoPro mounts, bikes, turf gear',
+    icon: (active) => (
+      <svg className={`w-5 h-5 ${active ? 'text-emerald-300' : 'text-[#0d382f]'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75">
+        <circle cx="12" cy="12" r="9" strokeWidth="1.75" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3.6 9h16.8M3.6 15h16.8M12 3a15.3 15.3 0 014 9 15.3 15.3 0 01-4 9m0-18a15.3 15.3 0 00-4 9 15.3 15.3 0 004 9" />
+      </svg>
+    ),
+  },
+  {
+    slug: 'academic',
+    label: 'Academic & Lab Gear',
+    desc: 'Scientific calcs, sensors, probes',
+    icon: (active) => (
+      <svg className={`w-5 h-5 ${active ? 'text-emerald-300' : 'text-[#0d382f]'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+      </svg>
+    ),
+  },
+];
 
 export const ListEquipmentScreen: React.FC<ListEquipmentScreenProps> = ({
   onBack,
@@ -335,40 +435,72 @@ export const ListEquipmentScreen: React.FC<ListEquipmentScreenProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-[#fbf9f5] pb-20 screen-transition-enter">
-      {/* Top Banner Navigation */}
-      <section className="border-b border-[#e9decb] bg-white sticky top-20 z-30 shadow-xs">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between">
-          <button
-            onClick={onBack}
-            className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-[#0d382f] hover:text-[#d96543] transition-colors cursor-pointer"
-          >
-            <span>← Back to Catalog</span>
-          </button>
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span className="text-xs font-mono font-bold text-[#0d382f]">
-              VIT CAMPUS LENDER STUDIO
-            </span>
+    <div className="space-y-8 pb-20 screen-transition-enter">
+      {/* Sub-Navigation & Studio Badge Bar */}
+      <section className="border-b border-[#e9decb] pb-4 bg-[#fbf9f5]">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-wrap items-center justify-between gap-4">
+          <nav aria-label="Breadcrumb" className="flex items-center space-x-2 text-xs sm:text-sm text-[#6c7772] font-medium">
+            <button
+              onClick={onBack}
+              className="hover:text-[#0d382f] transition-colors cursor-pointer flex items-center gap-1 font-semibold"
+            >
+              <span>← Back to Catalog</span>
+            </button>
+            <span className="text-[#cfc4b0]">/</span>
+            <span className="text-[#0d382f] font-bold">Lender Studio</span>
+          </nav>
+
+          <div className="inline-flex items-center gap-2 bg-[#092620] text-emerald-200 border border-emerald-800 px-3.5 py-1 rounded-full text-xs font-semibold shadow-xs">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span className="font-mono tracking-wider">VIT CAMPUS LENDER STUDIO</span>
           </div>
         </div>
       </section>
 
       {/* Main Container */}
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
-        {/* Editorial Page Header */}
-        <div className="border-b border-[#ebdccd] pb-6 mb-8">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#092620] text-emerald-200 text-xs font-mono font-bold border border-emerald-800 mb-3 shadow-xs">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-            CAMPUS PEER SHARING
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Editorial Studio Hero Card */}
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#092620] via-[#0d382f] to-[#124b3f] text-white p-6 sm:p-8 md:p-10 border border-emerald-950/80 shadow-board mb-8">
+          <div className="absolute -right-20 -bottom-20 w-80 h-80 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
+
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="max-w-2xl space-y-3">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-900/70 text-emerald-300 text-xs font-mono font-bold border border-emerald-500/30">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                CAMPUS PEER HARDWARE POOL
+              </div>
+              <h1 className="font-display text-2xl sm:text-3xl md:text-4xl font-extrabold text-white tracking-tight leading-tight">
+                List Equipment for Campus Rent
+              </h1>
+              <p className="text-xs sm:text-sm text-emerald-100/90 leading-relaxed max-w-xl font-normal">
+                Put your cameras, audio gear, sensors, dev kits, and tools into circulation. Earn passive student income with zero-deposit trust and verified campus handovers.
+              </p>
+            </div>
+
+            {/* Quick trust metrics badge */}
+            <div className="shrink-0 flex flex-col gap-2.5 bg-black/25 backdrop-blur-md border border-white/10 rounded-2xl p-4 min-w-[240px]">
+              <div className="text-[11px] font-mono uppercase tracking-wider text-emerald-400 font-bold flex items-center gap-1.5">
+                <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                </svg>
+                Peer Guarantee
+              </div>
+              <div className="text-xs text-white/90 space-y-1.5 font-medium">
+                <div className="flex items-center justify-between gap-2 border-b border-white/10 pb-1">
+                  <span className="text-emerald-200/80">Platform Fee</span>
+                  <span className="font-mono font-bold text-emerald-300">0% Free</span>
+                </div>
+                <div className="flex items-center justify-between gap-2 border-b border-white/10 pb-1">
+                  <span className="text-emerald-200/80">Protection</span>
+                  <span className="font-bold text-white">Condition Logged</span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-emerald-200/80">Eligibility</span>
+                  <span className="font-bold text-emerald-300">VIT Students Only</span>
+                </div>
+              </div>
+            </div>
           </div>
-          <h1 className="font-display text-3xl sm:text-4xl font-black text-[#0d382f] tracking-tight">
-            List Equipment for Campus Rent
-          </h1>
-          <p className="text-sm sm:text-base text-[#55635e] mt-1 max-w-2xl font-medium">
-            Turn your cameras, lab tools, sensors, and creator kits into passive income. Verified
-            VIT students only, with clear condition trails and zero cash deposit protection.
-          </p>
         </div>
 
         {/* Authentication Notice if not signed in */}
@@ -399,9 +531,9 @@ export const ListEquipmentScreen: React.FC<ListEquipmentScreenProps> = ({
           )}
 
           {/* Section 1: Category & Details */}
-          <section className="bg-white rounded-3xl border border-[#ded0bf] p-6 sm:p-8 shadow-sm space-y-6">
+          <section className="bg-white rounded-3xl border border-[#ded0bf] p-6 sm:p-8 shadow-sm space-y-6 hover:shadow-md transition-shadow">
             <div className="flex items-center gap-3 border-b border-[#ebdccd] pb-4">
-              <span className="w-7 h-7 rounded-xl bg-[#0d382f] text-white text-xs font-mono font-bold flex items-center justify-center">
+              <span className="w-7 h-7 rounded-xl bg-[#0d382f] text-emerald-300 text-xs font-mono font-bold flex items-center justify-center">
                 1
               </span>
               <div>
@@ -412,33 +544,55 @@ export const ListEquipmentScreen: React.FC<ListEquipmentScreenProps> = ({
 
             {/* Category Grid */}
             <div>
-              <label className="block text-xs font-mono font-bold text-[#0d382f] uppercase mb-2">
-                Category
-              </label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                {[
-                  { slug: 'cameras', label: 'Cameras & Lenses' },
-                  { slug: 'audio', label: 'Audio & Mics' },
-                  { slug: 'electronics', label: 'Drones & Electronics' },
-                  { slug: 'event-equipment', label: 'Displays & Projectors' },
-                  { slug: 'project-kits', label: 'Makers & Kits' },
-                  { slug: 'lighting', label: 'Studio Lighting' },
-                  { slug: 'sports', label: 'Sports & Outdoors' },
-                  { slug: 'academic', label: 'Academic & Lab Gear' },
-                ].map((cat) => (
-                  <button
-                    key={cat.slug}
-                    type="button"
-                    onClick={() => setSelectedCategorySlug(cat.slug)}
-                    className={`p-3 rounded-2xl text-left border transition-all cursor-pointer ${
-                      selectedCategorySlug === cat.slug
-                        ? 'border-[#0d382f] bg-[#0d382f] text-white ring-2 ring-[#0d382f]/20 shadow-xs'
-                        : 'border-[#ebdccd] bg-[#fbf9f5] hover:border-[#0d382f] text-[#1c2421]'
-                    }`}
-                  >
-                    <span className="block text-xs font-bold">{cat.label}</span>
-                  </button>
-                ))}
+              <div className="flex items-center justify-between mb-2.5">
+                <label className="block text-xs font-mono font-bold text-[#0d382f] uppercase">
+                  Category *
+                </label>
+                <span className="text-[11px] font-mono text-[#6c7772]">
+                  {CATEGORY_OPTIONS.find((c) => c.slug === selectedCategorySlug)?.label || selectedCategorySlug} selected
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {CATEGORY_OPTIONS.map((cat) => {
+                  const isSelected = selectedCategorySlug === cat.slug;
+                  return (
+                    <button
+                      key={cat.slug}
+                      type="button"
+                      onClick={() => setSelectedCategorySlug(cat.slug)}
+                      className={`p-3.5 rounded-2xl text-left border transition-all duration-200 cursor-pointer flex flex-col justify-between gap-2.5 group ${
+                        isSelected
+                          ? 'border-[#0d382f] bg-[#092620] text-white ring-2 ring-[#0d382f]/20 shadow-md'
+                          : 'border-[#ebdccd] bg-[#fbf9f5] hover:bg-white hover:border-[#0d382f]/60 text-[#1c2421]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <div
+                          className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
+                            isSelected
+                              ? 'bg-emerald-950/80 text-emerald-300'
+                              : 'bg-stone-100 text-[#0d382f] group-hover:bg-emerald-50'
+                          }`}
+                        >
+                          {cat.icon(isSelected)}
+                        </div>
+                        {isSelected && (
+                          <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                        )}
+                      </div>
+                      <div>
+                        <span className="block text-xs font-bold leading-tight">{cat.label}</span>
+                        <span
+                          className={`block text-[10px] mt-0.5 leading-tight ${
+                            isSelected ? 'text-emerald-200/80' : 'text-[#6c7772]'
+                          }`}
+                        >
+                          {cat.desc}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -489,10 +643,10 @@ export const ListEquipmentScreen: React.FC<ListEquipmentScreenProps> = ({
           </section>
 
           {/* Section 2: Photo Studio & Evidence */}
-          <section className="bg-white rounded-3xl border border-[#ded0bf] p-6 sm:p-8 shadow-sm space-y-6">
+          <section className="bg-white rounded-3xl border border-[#ded0bf] p-6 sm:p-8 shadow-sm space-y-6 hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between border-b border-[#ebdccd] pb-4">
               <div className="flex items-center gap-3">
-                <span className="w-7 h-7 rounded-xl bg-[#0d382f] text-white text-xs font-mono font-bold flex items-center justify-center">
+                <span className="w-7 h-7 rounded-xl bg-[#0d382f] text-emerald-300 text-xs font-mono font-bold flex items-center justify-center">
                   2
                 </span>
                 <div>
@@ -502,7 +656,7 @@ export const ListEquipmentScreen: React.FC<ListEquipmentScreenProps> = ({
                   </p>
                 </div>
               </div>
-              <span className="text-xs font-mono font-bold text-[#0d382f]">
+              <span className="text-xs font-mono font-bold text-[#0d382f] bg-stone-100 px-3 py-1 rounded-full border border-stone-200">
                 {photos.length} / 10 Photos
               </span>
             </div>
@@ -516,7 +670,7 @@ export const ListEquipmentScreen: React.FC<ListEquipmentScreenProps> = ({
             {/* Drag & Drop Upload Zone */}
             <div
               onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-[#cfc4b0] hover:border-[#0d382f] bg-[#fbf9f5] hover:bg-emerald-50/30 rounded-2xl p-6 sm:p-8 text-center transition-all cursor-pointer group"
+              className="border-2 border-dashed border-[#cfc4b0] hover:border-[#0d382f] bg-[#fbf9f5] hover:bg-emerald-50/20 rounded-2xl p-6 sm:p-8 text-center transition-all cursor-pointer group"
             >
               <input
                 ref={fileInputRef}
@@ -526,12 +680,12 @@ export const ListEquipmentScreen: React.FC<ListEquipmentScreenProps> = ({
                 onChange={(e) => handleFilesSelected(e.target.files)}
                 className="hidden"
               />
-              <div className="w-12 h-12 rounded-2xl bg-[#0d382f]/10 text-[#0d382f] group-hover:bg-[#0d382f] group-hover:text-white transition-all flex items-center justify-center mx-auto mb-3">
+              <div className="w-12 h-12 rounded-2xl bg-[#0d382f]/10 text-[#0d382f] group-hover:bg-[#0d382f] group-hover:text-white transition-all flex items-center justify-center mx-auto mb-3 shadow-xs">
                 <svg className="w-6 h-6 stroke-current fill-none" viewBox="0 0 24 24" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                 </svg>
               </div>
-              <h3 className="text-sm font-bold text-[#0d382f]">Choose photos or drag & drop</h3>
+              <h3 className="text-sm font-bold text-[#0d382f]">Choose photos or drag &amp; drop</h3>
               <p className="text-xs text-[#6c7772] mt-1">
                 JPEG, PNG, or WebP up to 5MB each. First photo will be your Cover.
               </p>
@@ -550,12 +704,12 @@ export const ListEquipmentScreen: React.FC<ListEquipmentScreenProps> = ({
                     handleAddUrlImage();
                   }
                 }}
-                className="flex-1 px-3.5 py-2 rounded-xl border border-[#cfc4b0] text-xs bg-[#fbf9f5] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0d382f]/30"
+                className="flex-1 px-3.5 py-2.5 rounded-xl border border-[#cfc4b0] text-xs bg-[#fbf9f5] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0d382f]/30 transition"
               />
               <button
                 type="button"
                 onClick={handleAddUrlImage}
-                className="px-4 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-bold transition cursor-pointer border border-stone-300"
+                className="px-4 py-2.5 rounded-xl bg-[#0d382f] hover:bg-[#134e43] text-white text-xs font-bold transition cursor-pointer shadow-xs"
               >
                 Add URL
               </button>
@@ -619,13 +773,13 @@ export const ListEquipmentScreen: React.FC<ListEquipmentScreenProps> = ({
           </section>
 
           {/* Section 3: Condition Guidelines */}
-          <section className="bg-white rounded-3xl border border-[#ded0bf] p-6 sm:p-8 shadow-sm space-y-6">
+          <section className="bg-white rounded-3xl border border-[#ded0bf] p-6 sm:p-8 shadow-sm space-y-6 hover:shadow-md transition-shadow">
             <div className="flex items-center gap-3 border-b border-[#ebdccd] pb-4">
-              <span className="w-7 h-7 rounded-xl bg-[#0d382f] text-white text-xs font-mono font-bold flex items-center justify-center">
+              <span className="w-7 h-7 rounded-xl bg-[#0d382f] text-emerald-300 text-xs font-mono font-bold flex items-center justify-center">
                 3
               </span>
               <div>
-                <h2 className="text-lg font-bold text-[#0d382f]">Condition & Transparency</h2>
+                <h2 className="text-lg font-bold text-[#0d382f]">Condition &amp; Transparency</h2>
                 <p className="text-xs text-[#6c7772]">
                   Transparent condition reporting ensures high lender rating and avoids return disputes
                 </p>
@@ -643,7 +797,7 @@ export const ListEquipmentScreen: React.FC<ListEquipmentScreenProps> = ({
                     onClick={() => setCondition(lvl)}
                     className={`p-3.5 rounded-2xl text-left border transition-all cursor-pointer ${
                       isSelected
-                        ? 'border-[#0d382f] bg-emerald-50/40 ring-2 ring-[#0d382f]/20 shadow-xs'
+                        ? 'border-[#0d382f] bg-emerald-50/50 ring-2 ring-[#0d382f]/20 shadow-xs'
                         : 'border-[#ebdccd] bg-white hover:border-[#0d382f]'
                     }`}
                   >
@@ -663,13 +817,13 @@ export const ListEquipmentScreen: React.FC<ListEquipmentScreenProps> = ({
           </section>
 
           {/* Section 4: Pricing & Security Deposit */}
-          <section className="bg-white rounded-3xl border border-[#ded0bf] p-6 sm:p-8 shadow-sm space-y-6">
+          <section className="bg-white rounded-3xl border border-[#ded0bf] p-6 sm:p-8 shadow-sm space-y-6 hover:shadow-md transition-shadow">
             <div className="flex items-center gap-3 border-b border-[#ebdccd] pb-4">
-              <span className="w-7 h-7 rounded-xl bg-[#0d382f] text-white text-xs font-mono font-bold flex items-center justify-center">
+              <span className="w-7 h-7 rounded-xl bg-[#0d382f] text-emerald-300 text-xs font-mono font-bold flex items-center justify-center">
                 4
               </span>
               <div>
-                <h2 className="text-lg font-bold text-[#0d382f]">Rental Pricing & Deposit</h2>
+                <h2 className="text-lg font-bold text-[#0d382f]">Rental Pricing &amp; Deposit</h2>
                 <p className="text-xs text-[#6c7772]">
                   Set student-friendly daily rates and deposit rules
                 </p>
@@ -677,12 +831,21 @@ export const ListEquipmentScreen: React.FC<ListEquipmentScreenProps> = ({
             </div>
 
             {/* Smart Pricing Guidance */}
-            <div className="p-3.5 rounded-2xl bg-[#092620]/5 border border-emerald-800/20 flex flex-wrap items-center justify-between gap-2 text-xs">
-              <span className="font-mono text-[#0d382f] font-bold">
-                Campus Benchmark for {selectedCategorySlug}:
-              </span>
-              <span className="font-bold text-[#d96543]">{activePricing.range}</span>
-              <span className="text-[#55635e]">({activePricing.deposit})</span>
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-50 via-[#f0f7f4] to-emerald-50/50 border border-emerald-800/20 flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-lg bg-[#0d382f] text-emerald-300 flex items-center justify-center shrink-0">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                  </svg>
+                </span>
+                <span className="font-mono text-[#0d382f] font-bold">
+                  Campus Benchmark for {CATEGORY_OPTIONS.find((c) => c.slug === selectedCategorySlug)?.label || selectedCategorySlug}:
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-[#d96543] font-mono text-sm">{activePricing.range}</span>
+                <span className="text-[#55635e] text-[11px]">({activePricing.deposit})</span>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -722,7 +885,7 @@ export const ListEquipmentScreen: React.FC<ListEquipmentScreenProps> = ({
                     className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold border transition cursor-pointer ${
                       isZeroDeposit
                         ? 'border-[#0d382f] bg-[#0d382f] text-white shadow-xs'
-                        : 'border-[#cfc4b0] bg-[#fbf9f5] text-[#1c2421]'
+                        : 'border-[#cfc4b0] bg-[#fbf9f5] hover:bg-white text-[#1c2421]'
                     }`}
                   >
                     Zero Deposit (Recommended)
@@ -733,7 +896,7 @@ export const ListEquipmentScreen: React.FC<ListEquipmentScreenProps> = ({
                     className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold border transition cursor-pointer ${
                       !isZeroDeposit
                         ? 'border-[#0d382f] bg-[#0d382f] text-white shadow-xs'
-                        : 'border-[#cfc4b0] bg-[#fbf9f5] text-[#1c2421]'
+                        : 'border-[#cfc4b0] bg-[#fbf9f5] hover:bg-white text-[#1c2421]'
                     }`}
                   >
                     Token Deposit
@@ -763,13 +926,13 @@ export const ListEquipmentScreen: React.FC<ListEquipmentScreenProps> = ({
           </section>
 
           {/* Section 5: Campus Handover Logistics */}
-          <section className="bg-white rounded-3xl border border-[#ded0bf] p-6 sm:p-8 shadow-sm space-y-6">
+          <section className="bg-white rounded-3xl border border-[#ded0bf] p-6 sm:p-8 shadow-sm space-y-6 hover:shadow-md transition-shadow">
             <div className="flex items-center gap-3 border-b border-[#ebdccd] pb-4">
-              <span className="w-7 h-7 rounded-xl bg-[#0d382f] text-white text-xs font-mono font-bold flex items-center justify-center">
+              <span className="w-7 h-7 rounded-xl bg-[#0d382f] text-emerald-300 text-xs font-mono font-bold flex items-center justify-center">
                 5
               </span>
               <div>
-                <h2 className="text-lg font-bold text-[#0d382f]">Campus Handover Location & Inclusions</h2>
+                <h2 className="text-lg font-bold text-[#0d382f]">Campus Handover Location &amp; Inclusions</h2>
                 <p className="text-xs text-[#6c7772]">
                   Specify verified handover points and accessories provided
                 </p>
@@ -793,7 +956,7 @@ export const ListEquipmentScreen: React.FC<ListEquipmentScreenProps> = ({
                     className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition cursor-pointer ${
                       pickupLocation === loc && !customLocation
                         ? 'border-[#0d382f] bg-[#0d382f] text-white shadow-xs'
-                        : 'border-[#cfc4b0] bg-[#fbf9f5] hover:border-[#0d382f] text-[#1c2421]'
+                        : 'border-[#ebdccd] bg-[#fbf9f5] hover:border-[#0d382f] text-[#1c2421]'
                     }`}
                   >
                     {loc}
@@ -855,7 +1018,7 @@ export const ListEquipmentScreen: React.FC<ListEquipmentScreenProps> = ({
                 <button
                   type="button"
                   onClick={handleAddInclusion}
-                  className="px-4 py-2 rounded-xl bg-stone-200 hover:bg-stone-300 text-stone-800 text-xs font-bold transition cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-[#0d382f] hover:bg-[#134e43] text-white text-xs font-bold transition cursor-pointer shadow-xs"
                 >
                   + Add
                 </button>
@@ -883,15 +1046,15 @@ export const ListEquipmentScreen: React.FC<ListEquipmentScreenProps> = ({
             <button
               type="button"
               onClick={onBack}
-              className="px-6 py-3 rounded-full border border-[#cfc4b0] bg-white text-stone-700 text-xs sm:text-sm font-bold hover:bg-stone-50 transition cursor-pointer w-full sm:w-auto"
+              className="px-6 py-3 rounded-full border border-[#cfc4b0] bg-white text-stone-700 text-xs sm:text-sm font-bold hover:bg-stone-100 transition cursor-pointer w-full sm:w-auto shadow-xs"
             >
-              Cancel & Return
+              Cancel &amp; Return
             </button>
 
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-8 py-3.5 rounded-full bg-[#d96543] hover:bg-[#c85635] text-white text-sm font-bold transition-all shadow-md hover:shadow-lg disabled:opacity-50 cursor-pointer w-full sm:w-auto btn-magnetic flex items-center justify-center gap-2"
+              className="px-8 py-3.5 rounded-full bg-[#d96543] hover:bg-[#c85635] text-white text-sm font-bold transition-all shadow-md hover:shadow-xl disabled:opacity-50 cursor-pointer w-full sm:w-auto btn-magnetic flex items-center justify-center gap-2"
             >
               {isSubmitting ? (
                 <>
