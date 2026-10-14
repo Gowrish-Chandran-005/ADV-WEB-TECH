@@ -1527,6 +1527,69 @@ describe('Frontend Wanted & Notifications API Client', () => {
     assert.equal(rep.renterReputation.reviewCount, 4);
     assert.equal(lastFetchUrl, '/api/v1/users/me/reputation');
   });
+
+  it('bookingsApi.requestReturn calls /bookings/:id/request-return via POST with auth header', async () => {
+    localStorage.setItem('lendr_token', 'mock-token');
+    mockFetch({
+      booking: {
+        id: 'book-ret-1',
+        equipmentId: 'eq-ret-1',
+        equipmentTitle: 'Sony FX3 Cinema Rig',
+        status: 'RETURN_REQUESTED',
+        paymentStatus: 'PAID',
+        renterId: 'renter-1',
+        ownerUserId: 'owner-1',
+        startAt: '2026-10-13T10:00:00Z',
+        endAt: '2026-10-15T10:00:00Z',
+        rentalDays: 2,
+        dailyRentalPrice: '500.00',
+        securityDeposit: '0.00',
+        totalPrice: '1000.00',
+        returnRecordedAt: new Date().toISOString(),
+        createdAt: '2026-10-13T10:00:00Z',
+      },
+    });
+
+    const res = await bookingsApi.requestReturn('book-ret-1');
+    assert.equal(lastFetchUrl, '/api/v1/bookings/book-ret-1/request-return');
+    assert.equal(lastFetchOptions?.method, 'POST');
+    assert.match(String(lastFetchOptions?.headers && (lastFetchOptions.headers as any).Authorization), /^Bearer mock-token/);
+    assert.equal(res.booking.status, 'RETURN_REQUESTED');
+
+    const adapted = adaptBookingToRequest(res.booking as any);
+    assert.equal(adapted.status, 'return_requested');
+  });
+
+  it('bookingsApi.complete calls /bookings/:id/complete via POST with auth header', async () => {
+    localStorage.setItem('lendr_token', 'mock-token');
+    mockFetch({
+      booking: {
+        id: 'book-comp-1',
+        equipmentId: 'eq-comp-1',
+        equipmentTitle: 'Sony FX3 Cinema Rig',
+        status: 'COMPLETED',
+        paymentStatus: 'PAID',
+        renterId: 'renter-1',
+        ownerUserId: 'owner-1',
+        startAt: '2026-10-13T10:00:00Z',
+        endAt: '2026-10-15T10:00:00Z',
+        rentalDays: 2,
+        dailyRentalPrice: '500.00',
+        securityDeposit: '0.00',
+        totalPrice: '1000.00',
+        returnRecordedAt: new Date().toISOString(),
+        createdAt: '2026-10-13T10:00:00Z',
+      },
+    });
+
+    const res = await bookingsApi.complete('book-comp-1');
+    assert.equal(lastFetchUrl, '/api/v1/bookings/book-comp-1/complete');
+    assert.equal(lastFetchOptions?.method, 'POST');
+    assert.equal(res.booking.status, 'COMPLETED');
+
+    const adapted = adaptBookingToRequest(res.booking as any);
+    assert.equal(adapted.status, 'completed');
+  });
 });
 
 

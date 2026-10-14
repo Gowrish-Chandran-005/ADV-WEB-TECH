@@ -253,6 +253,13 @@ function AppInner() {
     loadBookings();
   }, [loadBookings]);
 
+  // Reload bookings whenever user views their profile / My Gear Hub
+  useEffect(() => {
+    if (currentScreen === 'profile') {
+      loadBookings();
+    }
+  }, [currentScreen, loadBookings]);
+
   // Scroll to top on screen change
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });

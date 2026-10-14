@@ -108,9 +108,26 @@ export const MyGearHubScreen: React.FC<MyGearHubScreenProps> = ({
   // Returning booking state
   const [returningBookingId, setReturningBookingId] = useState<string | null>(null);
 
+  // Renter Bookings state (synced with props and live API)
+  const [renterBookings, setRenterBookings] = useState<BookingRequest[]>(bookings);
+
+  useEffect(() => {
+    setRenterBookings(bookings);
+  }, [bookings]);
+
   // Load all hub data
   const loadHubData = useCallback(async () => {
     if (!currentUser) return;
+
+    // Load Renter Bookings (My Rentals)
+    bookingsApi
+      .myBookings({ pageSize: 50 })
+      .then((res) => {
+        setRenterBookings(res.items.map((b) => adaptBookingToRequest(b)));
+      })
+      .catch(() => {
+        // Fallback to existing renterBookings/bookings prop
+      });
 
     // Load Two-Way Reputation
     setIsLoadingReputation(true);
@@ -230,7 +247,12 @@ export const MyGearHubScreen: React.FC<MyGearHubScreenProps> = ({
       } else {
         await bookingsApi.requestReturn(bookingId);
       }
+      // Optimistically update local renter bookings state immediately
+      setRenterBookings((prev) =>
+        prev.map((b) => (b.id === bookingId ? { ...b, status: 'return_requested' } : b))
+      );
       if (onRefreshBookings) onRefreshBookings();
+      await loadHubData();
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Failed to request return.');
     } finally {
@@ -303,18 +325,20 @@ export const MyGearHubScreen: React.FC<MyGearHubScreenProps> = ({
 
   // Filter rentals by lifecycle
   const filteredBookings = useMemo(() => {
-    return bookings.filter((b) => {
+    return renterBookings.filter((b) => {
+      const status = String(b.status || '').toLowerCase();
+      const paymentStatus = String(b.paymentStatus || '').toLowerCase();
       if (rentalFilter === 'all') return true;
-      if (rentalFilter === 'pending') return b.status === 'pending';
-      if (rentalFilter === 'ready_to_pay') return b.status === 'approved' && b.paymentStatus !== 'paid';
-      if (rentalFilter === 'paid_upcoming') return b.status === 'approved' && b.paymentStatus === 'paid';
-      if (rentalFilter === 'active') return b.status === 'active';
-      if (rentalFilter === 'return_requested') return b.status === 'return_requested';
-      if (rentalFilter === 'completed') return b.status === 'completed';
-      if (rentalFilter === 'cancelled') return b.status === 'cancelled' || b.status === 'rejected';
+      if (rentalFilter === 'pending') return status === 'pending';
+      if (rentalFilter === 'ready_to_pay') return status === 'approved' && paymentStatus !== 'paid';
+      if (rentalFilter === 'paid_upcoming') return status === 'approved' && paymentStatus === 'paid';
+      if (rentalFilter === 'active') return status === 'active';
+      if (rentalFilter === 'return_requested') return status === 'return_requested';
+      if (rentalFilter === 'completed') return status === 'completed';
+      if (rentalFilter === 'cancelled') return status === 'cancelled' || status === 'rejected';
       return true;
     });
-  }, [bookings, rentalFilter]);
+  }, [renterBookings, rentalFilter]);
 
   // Filter received bookings for lender approvals
   const filteredReceivedBookings = useMemo(() => {
@@ -546,10 +570,10 @@ export const MyGearHubScreen: React.FC<MyGearHubScreenProps> = ({
               </div>
             </div>
             <div className="font-display font-black text-2xl text-[#114b3f]">
-              {bookings.length}
+              {renterBookings.length}
             </div>
             <div className="text-[11px] text-stone-600 font-medium truncate">
-              {bookings.filter((b) => b.status === 'active').length} active currently
+              {renterBookings.filter((b) => String(b.status).toLowerCase() === 'active').length} active currently
             </div>
           </button>
 
@@ -749,7 +773,7 @@ export const MyGearHubScreen: React.FC<MyGearHubScreenProps> = ({
             <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
               activeTab === 'rentals' ? 'bg-white/20 text-white' : 'bg-stone-100 text-stone-600'
             }`}>
-              {bookings.length}
+              {renterBookings.length}
             </span>
           </button>
 
@@ -841,7 +865,7 @@ export const MyGearHubScreen: React.FC<MyGearHubScreenProps> = ({
         {activeTab === 'overview' && (
           <div className="space-y-8">
             {/* Active / Next Rental Highlight */}
-            {bookings.length > 0 && (
+            {renterBookings.length > 0 && (
               <div className="bg-white border-2 border-[#114b3f] rounded-3xl p-6 sm:p-7 shadow-sm">
                 <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-[#ebdccd]">
                   <div className="flex items-center gap-2">
@@ -849,57 +873,86 @@ export const MyGearHubScreen: React.FC<MyGearHubScreenProps> = ({
                       LATEST RENTAL
                     </span>
                     <h3 className="font-display text-lg font-black text-[#114b3f]">
-                      {bookings[0].gearTitle}
+                      {renterBookings[0].gearTitle}
                     </h3>
                   </div>
                   <span className={`px-2.5 py-1 rounded-full text-xs font-mono font-bold uppercase ${
-                    bookings[0].status === 'active'
+                    String(renterBookings[0].status).toLowerCase() === 'active'
                       ? 'bg-emerald-100 text-emerald-800'
-                      : bookings[0].status === 'approved'
+                      : String(renterBookings[0].status).toLowerCase() === 'return_requested'
+                      ? 'bg-amber-100 text-amber-800'
+                      : String(renterBookings[0].status).toLowerCase() === 'approved'
                       ? 'bg-blue-100 text-blue-800'
-                      : 'bg-amber-100 text-amber-800'
+                      : 'bg-stone-200 text-stone-700'
                   }`}>
-                    {bookings[0].status.replace('_', ' ')}
+                    {String(renterBookings[0].status).replace('_', ' ')}
                   </span>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 py-4 text-xs">
                   <div>
                     <span className="text-stone-400 font-mono text-[10px] block uppercase">Rental Dates</span>
-                    <span className="font-semibold text-stone-900">{bookings[0].startDate} → {bookings[0].endDate}</span>
+                    <span className="font-semibold text-stone-900">{renterBookings[0].startDate} → {renterBookings[0].endDate}</span>
                   </div>
                   <div>
                     <span className="text-stone-400 font-mono text-[10px] block uppercase">Owner / Lender</span>
-                    <span className="font-semibold text-stone-900">{bookings[0].lenderName}</span>
+                    <span className="font-semibold text-stone-900">{renterBookings[0].lenderName}</span>
                   </div>
                   <div>
                     <span className="text-stone-400 font-mono text-[10px] block uppercase">Total Rental Fee</span>
-                    <span className="font-mono font-bold text-[#d96543] text-sm">₹{bookings[0].totalAmount}</span>
+                    <span className="font-mono font-bold text-[#d96543] text-sm">₹{renterBookings[0].totalAmount}</span>
                   </div>
                   <div>
                     <span className="text-stone-400 font-mono text-[10px] block uppercase">Payment Status</span>
                     <span className={`font-mono font-bold text-xs ${
-                      bookings[0].paymentStatus === 'paid' ? 'text-emerald-700' : 'text-amber-700'
+                      String(renterBookings[0].paymentStatus).toLowerCase() === 'paid' ? 'text-emerald-700' : 'text-amber-700'
                     }`}>
-                      {bookings[0].paymentStatus === 'paid' ? 'PAID (DEMO)' : 'UNPAID'}
+                      {String(renterBookings[0].paymentStatus).toLowerCase() === 'paid' ? 'PAID (DEMO)' : 'UNPAID'}
                     </span>
                   </div>
                 </div>
 
-                <div className="pt-3 border-t border-[#ebdccd] flex items-center justify-end gap-3">
-                  {bookings[0].status === 'approved' && bookings[0].paymentStatus !== 'paid' && onProceedToPayment && (
+                <div className="pt-3 border-t border-[#ebdccd] flex flex-wrap items-center justify-end gap-3">
+                  {String(renterBookings[0].status).toLowerCase() === 'approved' &&
+                    String(renterBookings[0].paymentStatus).toLowerCase() !== 'paid' &&
+                    onProceedToPayment && (
                     <button
-                      onClick={() => onProceedToPayment(bookings[0])}
+                      onClick={() => onProceedToPayment(renterBookings[0])}
                       className="px-4 py-2 rounded-xl bg-[#d96543] hover:bg-[#c85635] text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
                     >
-                      Proceed to Payment (₹{bookings[0].totalAmount})
+                      Proceed to Payment (₹{renterBookings[0].totalAmount})
                     </button>
                   )}
+
+                  {String(renterBookings[0].status).toLowerCase() === 'active' && (
+                    <button
+                      disabled={returningBookingId === renterBookings[0].id}
+                      onClick={() => {
+                        if (window.confirm(`Request return for ${renterBookings[0].gearTitle}? Make sure all accessories and cables are ready for peer handover.`)) {
+                          handleReturn(renterBookings[0].id);
+                        }
+                      }}
+                      className="px-4 py-2 rounded-xl bg-[#114b3f] hover:bg-[#0c362d] text-white text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                      </svg>
+                      <span>{returningBookingId === renterBookings[0].id ? 'Requesting...' : 'Request Return'}</span>
+                    </button>
+                  )}
+
+                  {String(renterBookings[0].status).toLowerCase() === 'return_requested' && (
+                    <div className="px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-semibold flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                      <span>Return requested — waiting for owner confirmation</span>
+                    </div>
+                  )}
+
                   <button
                     onClick={() => setActiveTab('rentals')}
                     className="px-4 py-2 rounded-xl border border-stone-300 bg-white hover:bg-stone-50 text-stone-700 text-xs font-bold transition-colors cursor-pointer"
                   >
-                    View All Rentals ({bookings.length}) →
+                    View All Rentals ({renterBookings.length}) →
                   </button>
                 </div>
               </div>
@@ -1328,28 +1381,30 @@ export const MyGearHubScreen: React.FC<MyGearHubScreenProps> = ({
                       <div className="flex items-center gap-2">
                         {/* Status Badge */}
                         <span className={`px-2.5 py-1 rounded-full text-[11px] font-mono font-bold uppercase ${
-                          b.status === 'completed'
+                          String(b.status).toLowerCase() === 'completed'
                             ? 'bg-emerald-100 text-emerald-800'
-                            : b.status === 'active'
+                            : String(b.status).toLowerCase() === 'active'
                             ? 'bg-blue-100 text-blue-800'
-                            : b.status === 'approved'
+                            : String(b.status).toLowerCase() === 'return_requested'
+                            ? 'bg-amber-100 text-amber-800 ring-2 ring-amber-400'
+                            : String(b.status).toLowerCase() === 'approved'
                             ? 'bg-teal-100 text-teal-800'
-                            : b.status === 'pending'
+                            : String(b.status).toLowerCase() === 'pending'
                             ? 'bg-amber-100 text-amber-800'
                             : 'bg-stone-200 text-stone-700'
                         }`}>
-                          {b.status.replace('_', ' ')}
+                          {String(b.status).replace('_', ' ')}
                         </span>
 
                         {/* Payment Status Badge */}
                         <span className={`px-2.5 py-1 rounded-full text-[11px] font-mono font-bold uppercase ${
-                          b.paymentStatus === 'paid'
+                          String(b.paymentStatus).toLowerCase() === 'paid'
                             ? 'bg-emerald-100 text-emerald-800'
-                            : b.paymentStatus === 'failed'
+                            : String(b.paymentStatus).toLowerCase() === 'failed'
                             ? 'bg-rose-100 text-rose-800'
                             : 'bg-stone-100 text-stone-600'
                         }`}>
-                          {b.paymentStatus === 'paid' ? 'PAID' : 'UNPAID'}
+                          {String(b.paymentStatus).toLowerCase() === 'paid' ? 'PAID' : 'UNPAID'}
                         </span>
                       </div>
                     </div>
@@ -1381,7 +1436,7 @@ export const MyGearHubScreen: React.FC<MyGearHubScreenProps> = ({
                     {/* Rental Action Controls */}
                     <div className="pt-3 border-t border-stone-100 flex flex-wrap items-center justify-end gap-2.5">
                       {/* Ready to pay button */}
-                      {b.status === 'approved' && b.paymentStatus !== 'paid' && onProceedToPayment && (
+                      {String(b.status).toLowerCase() === 'approved' && String(b.paymentStatus).toLowerCase() !== 'paid' && onProceedToPayment && (
                         <button
                           onClick={() => onProceedToPayment(b)}
                           className="px-4 py-2 rounded-xl bg-[#d96543] hover:bg-[#c85635] text-white text-xs font-bold transition shadow-xs cursor-pointer flex items-center gap-1.5"
@@ -1394,7 +1449,7 @@ export const MyGearHubScreen: React.FC<MyGearHubScreenProps> = ({
                       )}
 
                       {/* Payment failed - retry button */}
-                      {b.paymentStatus === 'failed' && onProceedToPayment && (
+                      {String(b.paymentStatus).toLowerCase() === 'failed' && onProceedToPayment && (
                         <button
                           onClick={() => onProceedToPayment(b)}
                           className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition shadow-xs cursor-pointer"
@@ -1404,7 +1459,7 @@ export const MyGearHubScreen: React.FC<MyGearHubScreenProps> = ({
                       )}
 
                       {/* Active rental - request return */}
-                      {b.status === 'active' && (
+                      {String(b.status).toLowerCase() === 'active' && (
                         <button
                           disabled={returningBookingId === b.id}
                           onClick={() => {
@@ -1412,14 +1467,18 @@ export const MyGearHubScreen: React.FC<MyGearHubScreenProps> = ({
                               handleReturn(b.id);
                             }
                           }}
-                          className="px-4 py-2 rounded-xl bg-[#114b3f] hover:bg-[#0c362d] text-white text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50"
+                          className="px-4 py-2 rounded-xl bg-[#114b3f] hover:bg-[#0c362d] text-white text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                          data-testid={`request-return-btn-${b.id}`}
                         >
-                          {returningBookingId === b.id ? 'Requesting...' : 'Request Return'}
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                          </svg>
+                          <span>{returningBookingId === b.id ? 'Requesting...' : 'Request Return'}</span>
                         </button>
                       )}
 
                       {/* Return requested notice */}
-                      {b.status === 'return_requested' && (
+                      {String(b.status).toLowerCase() === 'return_requested' && (
                         <div className="px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-semibold flex items-center gap-2">
                           <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
                           <span>Return requested — waiting for owner confirmation</span>
@@ -1427,7 +1486,7 @@ export const MyGearHubScreen: React.FC<MyGearHubScreenProps> = ({
                       )}
 
                       {/* Completed rental - Rate Owner */}
-                      {b.status === 'completed' && (
+                      {String(b.status).toLowerCase() === 'completed' && (
                         <button
                           onClick={() => setSelectedReviewBooking(b)}
                           className="px-3.5 py-2 rounded-xl bg-[#114b3f] hover:bg-[#0c362d] text-white text-xs font-bold transition shadow-xs cursor-pointer flex items-center gap-1.5"
