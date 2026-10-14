@@ -1,0 +1,359 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-cream: #fbf9f5;
+  --color-brand-dark: #0d382f;
+  --color-brand-darker: #08241e;
+  --color-brand-deepforest: #0d382f;
+  --color-brand-sidebar: #092620;
+  --color-brand-forest: #134e43;
+  --color-brand-terracotta: #d96543;
+  --color-brand-terralight: #ffede7;
+  --color-brand-coral: #e97753;
+  --color-brand-sand: #f2eee6;
+  --color-brand-mint: #d4ece4;
+  --color-brand-lightgreen: #e8f3ef;
+  --color-brand-softmint: #d1e7dd;
+  --color-brand-charcoal: #1c2421;
+  --color-brand-muted: #697a73;
+  --color-brand-borderlight: #e7e2d7;
+
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Epilogue', sans-serif;
+  --font-mono: 'Space Mono', monospace;
+
+  --shadow-board: 0 20px 45px -12px rgba(13, 56, 47, 0.25);
+  --shadow-card-lift: 0 8px 24px -6px rgba(13, 56, 47, 0.1);
+  --shadow-notice: 0 6px 20px -4px rgba(217, 101, 67, 0.18);
+}
+
+body {
+  background-color: #fbf9f5;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  color: #1c2421;
+}
+
+.font-display {
+  font-family: 'Epilogue', sans-serif;
+}
+
+.tape-badge {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-family: 'Space Mono', monospace;
+}
+
+/* Professional Fluid Animations & Transitions (Eloqwnt & Luxury Concept) */
+@keyframes eloqwntFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes popIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.92) translateY(12px);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.01) translateY(-2px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes floatGentle {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(0.8deg);
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(217, 101, 67, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(217, 101, 67, 0);
+  }
+}
+
+@keyframes shimmerSweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Motion System Tokens (Fast: 140ms, Standard: 220ms, Panel: 280ms) */
+@keyframes screenEnter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes modalBackdropEnter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modalCardEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes drawerSlideIn {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.screen-transition-enter {
+  animation: screenEnter 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: opacity, transform;
+}
+
+.modal-backdrop-enter {
+  animation: modalBackdropEnter 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: opacity;
+}
+
+.modal-card-enter {
+  animation: modalCardEnter 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: opacity, transform;
+}
+
+.drawer-slide-in {
+  animation: drawerSlideIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform;
+}
+
+.focus-ring {
+  outline: none;
+  transition: box-shadow 0.15s ease;
+}
+
+.focus-ring:focus-visible {
+  box-shadow: 0 0 0 2px #fbf9f5, 0 0 0 4px #0d382f;
+}
+
+.animate-float {
+  animation: floatGentle 5s ease-in-out infinite;
+}
+
+.animate-float-delayed {
+  animation: floatGentle 6s ease-in-out 1.5s infinite;
+}
+
+.pulse-ring {
+  animation: pulseGlow 2.5s infinite;
+}
+
+/* Scroll Reveal Base Classes */
+.reveal-on-scroll {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+
+.reveal-on-scroll.is-revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.reveal-pop {
+  opacity: 0;
+  transform: scale(0.94) translateY(20px);
+  transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+
+.reveal-pop.is-revealed {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+}
+
+/* Staggered Delay Utilities */
+.stagger-1 { transition-delay: 60ms; }
+.stagger-2 { transition-delay: 120ms; }
+.stagger-3 { transition-delay: 180ms; }
+.stagger-4 { transition-delay: 240ms; }
+.stagger-5 { transition-delay: 300ms; }
+.stagger-6 { transition-delay: 360ms; }
+
+/* Modern Luxury Retail Glass & Shimmer Effects */
+.glass-card {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(231, 226, 215, 0.85);
+}
+
+.glass-dark {
+  background: rgba(17, 75, 63, 0.75);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+/* Interactive Product Card with Dark Green Outline Illustration Effect & Spring Lift */
+.product-card-modern {
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform, box-shadow, border-color;
+  position: relative;
+  border: 1.5px solid #e7e2d7;
+}
+
+.product-card-modern:hover {
+  transform: translateY(-8px) scale(1.015);
+  border-color: #0d382f;
+  box-shadow: 0 0 0 2px #0d382f, 0 20px 35px -8px rgba(13, 56, 47, 0.28);
+}
+
+/* Smooth Image Zoom Container */
+.image-zoom-container {
+  overflow: hidden;
+  position: relative;
+}
+
+.image-zoom-container img {
+  transition: transform 0.65s cubic-bezier(0.16, 1, 0.3, 1), filter 0.4s ease;
+  will-change: transform;
+}
+
+.image-zoom-container:hover img,
+.product-card-modern:hover .image-zoom-container img {
+  transform: scale(1.08);
+}
+
+/* Magnetic Button Feel with Dark Green Outline on Hover */
+.btn-magnetic {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-magnetic:hover {
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 8px 20px -4px rgba(13, 56, 47, 0.3);
+}
+
+.btn-magnetic:active {
+  transform: translateY(0) scale(0.97);
+}
+
+/* Outline Illustration Hover for Pills, Filters & Action Buttons */
+.outline-hover-green {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.outline-hover-green:hover {
+  border-color: #0d382f;
+  box-shadow: 0 0 0 1.5px #0d382f;
+  transform: translateY(-2px);
+}
+
+/* Shimmer overlay for luxury badges */
+.shimmer-hover {
+  position: relative;
+  overflow: hidden;
+}
+
+.shimmer-hover::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent);
+  transform: translateX(-100%);
+}
+
+.shimmer-hover:hover::after {
+  animation: shimmerSweep 0.85s ease-in-out;
+}
+
+/* Category Circle Cards with Bounce & Glow */
+.category-bubble {
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.category-bubble:hover {
+  transform: translateY(-6px) scale(1.06);
+  box-shadow: 0 16px 32px -8px rgba(13, 56, 47, 0.2);
+}
+
+.category-bubble:hover .bubble-icon {
+  transform: scale(1.15) rotate(4deg);
+}
+
+.bubble-icon {
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Reduced Motion Support for Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+    transform: none !important;
+  }
+
+  .screen-transition-enter,
+  .modal-backdrop-enter,
+  .modal-card-enter,
+  .drawer-slide-in,
+  .animate-float,
+  .animate-float-delayed,
+  .pulse-ring {
+    animation: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+
+  .reveal-on-scroll,
+  .reveal-pop {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+}
+
+
+
