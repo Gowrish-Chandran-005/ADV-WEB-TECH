@@ -74,6 +74,12 @@ export function createBookingReviewsRouter(
   const router = Router();
   const authenticate = createAuthenticate(authDependencies);
 
+  router.get('/:id/reviews', authenticate, requireStudent, async (request, response) => {
+    const bookingId = requireId(request.params.id, 'The booking ID is invalid.');
+    const summary = await repository.getBookingReviews(bookingId, request.authUser!.id);
+    response.status(200).json(summary);
+  });
+
   router.post('/:id/reviews', authenticate, requireStudent, async (request, response) => {
     const bookingId = requireId(request.params.id, 'The booking ID is invalid.');
     const parsedBody = createReviewSchema.safeParse(request.body);
@@ -88,6 +94,28 @@ export function createBookingReviewsRouter(
     });
 
     response.status(201).json({ review });
+  });
+
+  return router;
+}
+
+export function createUserReviewsRouter(
+  authDependencies: AuthDependencies,
+  repository: ReviewsRepository = reviewsRepository,
+): Router {
+  const router = Router();
+  const authenticate = createAuthenticate(authDependencies);
+  const optionalAuth = createOptionalAuthenticate(authDependencies);
+
+  router.get('/me/reputation', authenticate, requireStudent, async (request, response) => {
+    const reputation = await repository.getUserReputation(request.authUser!.id);
+    response.status(200).json(reputation);
+  });
+
+  router.get('/:id/reputation', optionalAuth, async (request, response) => {
+    const userId = requireId(request.params.id, 'The user ID is invalid.');
+    const reputation = await repository.getUserReputation(userId);
+    response.status(200).json(reputation);
   });
 
   return router;

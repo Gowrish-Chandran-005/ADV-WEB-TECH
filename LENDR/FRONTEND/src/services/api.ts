@@ -169,6 +169,7 @@ export interface ApiBooking {
   startAt: string;
   endAt: string;
   status: string;
+  paymentStatus?: string;
   rentalDays: number;
   dailyRentalPrice: string;
   securityDeposit: string;
@@ -178,6 +179,44 @@ export interface ApiBooking {
   returnRecordedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ApiPaymentRecord {
+  id: string;
+  bookingId: string;
+  payerId: string;
+  amount: string;
+  currency: string;
+  provider: string;
+  providerReference: string | null;
+  status: 'PENDING' | 'SUCCESS' | 'FAILED' | 'REFUNDED';
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApiUserPayment {
+  id: string;
+  bookingId: string;
+  payerId: string;
+  amount: string;
+  currency: string;
+  provider: string;
+  providerReference: string | null;
+  status: 'PENDING' | 'SUCCESS' | 'FAILED' | 'REFUNDED';
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+  bookingReference: string;
+  startAt: string;
+  endAt: string;
+  bookingStatus: string;
+  bookingPaymentStatus: string;
+  totalPrice: string;
+  equipmentId: string;
+  equipmentTitle: string;
+  imageUrls: string[];
+  ownerName: string;
 }
 
 export interface ApiAvailability {
@@ -274,6 +313,18 @@ export interface ApiWantedOffer {
   status: ApiOfferStatus;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ApiWantedRequestWithOffers extends ApiWantedRequest {
+  offers: ApiWantedOffer[];
+}
+
+export interface ApiUserSentOffer extends ApiWantedOffer {
+  wantedRequestTitle: string;
+  wantedRequestStartDate: string;
+  wantedRequestEndDate: string;
+  wantedRequestUrgency: ApiWantedUrgency;
+  wantedRequestStatus: ApiWantedStatus;
 }
 
 export interface ApiMatchedEquipmentItem {
@@ -593,6 +644,10 @@ export const bookingsApi = {
     return apiFetch<{ booking: ApiBooking }>(`/bookings/${id}/cancel`, { method: 'POST' });
   },
 
+  async start(id: string): Promise<{ booking: ApiBooking }> {
+    return apiFetch<{ booking: ApiBooking }>(`/bookings/${id}/start`, { method: 'POST' });
+  },
+
   async requestReturn(id: string): Promise<{ booking: ApiBooking }> {
     return apiFetch<{ booking: ApiBooking }>(`/bookings/${id}/request-return`, { method: 'POST' });
   },
@@ -600,6 +655,34 @@ export const bookingsApi = {
   async complete(id: string): Promise<{ booking: ApiBooking }> {
     return apiFetch<{ booking: ApiBooking }>(`/bookings/${id}/complete`, { method: 'POST' });
   },
+
+  async pay(
+    id: string,
+    body: { action?: 'SUCCESS' | 'FAIL' } = {},
+  ): Promise<{ payment: ApiPaymentRecord; booking: ApiBooking; alreadyPaid?: boolean }> {
+    return apiFetch<{ payment: ApiPaymentRecord; booking: ApiBooking; alreadyPaid?: boolean }>(
+      `/bookings/${id}/pay`,
+      {
+        method: 'POST',
+        body: JSON.stringify(body),
+      },
+    );
+  },
+
+  async listPayments(
+    id: string,
+  ): Promise<{ items: ApiPaymentRecord[] }> {
+    return apiFetch<{ items: ApiPaymentRecord[] }>(`/bookings/${id}/payments`);
+  },
+};
+
+// ─── Payments ─────────────────────────────────────────────────────────────────
+
+export const paymentsApi = {
+  pay: (bookingId: string, action: 'SUCCESS' | 'FAIL' = 'SUCCESS') =>
+    bookingsApi.pay(bookingId, { action }),
+  listForBooking: (bookingId: string) => bookingsApi.listPayments(bookingId),
+  myPayments: () => apiFetch<{ items: ApiUserPayment[] }>('/users/me/payments'),
 };
 
 // ─── Wanted Board ─────────────────────────────────────────────────────────────
@@ -616,6 +699,14 @@ export const wantedApi = {
     if (params.sort) searchParams.set('sort', params.sort);
     const qs = searchParams.toString();
     return apiFetch<ApiPagedResult<ApiWantedRequest>>(`/wanted${qs ? `?${qs}` : ''}`);
+  },
+
+  async myRequests(): Promise<{ items: ApiWantedRequestWithOffers[] }> {
+    return apiFetch<{ items: ApiWantedRequestWithOffers[] }>('/wanted/my/requests');
+  },
+
+  async myOffers(): Promise<{ items: ApiUserSentOffer[] }> {
+    return apiFetch<{ items: ApiUserSentOffer[] }>('/wanted/my/offers');
   },
 
   async getById(id: string): Promise<{ request: ApiWantedRequest; offers?: ApiWantedOffer[] }> {
@@ -1018,9 +1109,49 @@ export interface ApiPublicReview {
   id: string;
   rating: number;
   comment: string | null;
+  direction?: 'RENTER_TO_OWNER' | 'OWNER_TO_RENTER';
+  status?: 'PENDING_REVEAL' | 'REVEALED';
+  equipmentTitle?: string;
   createdAt: string;
   reviewerName: string;
   reviewerInitials: string;
+}
+
+export type ApiReviewDirection = 'RENTER_TO_OWNER' | 'OWNER_TO_RENTER';
+export type ApiReviewStatus = 'PENDING_REVEAL' | 'REVEALED';
+
+export interface ApiBookingReviewItem {
+  id?: string;
+  rating?: number;
+  comment?: string | null;
+  status: ApiReviewStatus;
+  createdAt?: string;
+  reviewerName?: string;
+  reviewerInitials?: string;
+  isRevealed: boolean;
+}
+
+export interface ApiBookingReviewSummary {
+  bookingId: string;
+  status: string;
+  canReview: boolean;
+  myRole: 'renter' | 'owner' | 'none';
+  myDirection: ApiReviewDirection | null;
+  myReview: ApiBookingReviewItem | null;
+  partnerReview: ApiBookingReviewItem | null;
+}
+
+export interface ApiReputationCategory {
+  averageRating: number | null;
+  reviewCount: number;
+  completedRentals: number;
+  reviews: ApiPublicReview[];
+}
+
+export interface ApiUserReputationSummary {
+  userId: string;
+  ownerReputation: ApiReputationCategory;
+  renterReputation: ApiReputationCategory;
 }
 
 export interface ApiEquipmentReviewsResponse {
@@ -1048,6 +1179,10 @@ export const reviewsApi = {
     return apiFetch<ApiEquipmentReviewsResponse>(`/equipment/${equipmentId}/reviews`);
   },
 
+  async getForBooking(bookingId: string): Promise<ApiBookingReviewSummary> {
+    return apiFetch<ApiBookingReviewSummary>(`/bookings/${bookingId}/reviews`);
+  },
+
   async createForBooking(
     bookingId: string,
     payload: { rating: number; comment?: string },
@@ -1066,6 +1201,14 @@ export const reviewsApi = {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+  },
+
+  async getUserReputation(userId: string): Promise<ApiUserReputationSummary> {
+    return apiFetch<ApiUserReputationSummary>(`/users/${userId}/reputation`);
+  },
+
+  async getMyReputation(): Promise<ApiUserReputationSummary> {
+    return apiFetch<ApiUserReputationSummary>('/users/me/reputation');
   },
 };
 

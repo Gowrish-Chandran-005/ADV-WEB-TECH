@@ -1,6 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { GearItem, GearCategory } from '../types/gear';
 import { useFavorites } from '../context/FavoritesContext';
+import { equipmentApi } from '../services/api';
+import { adaptEquipmentToGearItem } from '../services/adapters';
 
 interface CatalogScreenProps {
   items: GearItem[];
@@ -8,6 +10,7 @@ interface CatalogScreenProps {
   onOpenWantedModal: () => void;
   initialCategory?: GearCategory;
   initialQuery?: string;
+  onQueryChange?: (query: string) => void;
   onNavigateHome: () => void;
   onOpenAuth?: () => void;
 }
@@ -18,16 +21,19 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({
   onOpenWantedModal,
   initialCategory,
   initialQuery = '',
+  onQueryChange,
   onNavigateHome,
   onOpenAuth,
 }) => {
   const { isFavorited, isToggling, toggleFavorite, error: favoritesError, clearError } = useFavorites();
   // Filters state
   const [searchQuery, setSearchQuery] = useState(initialQuery);
+  const [backendSearchResults, setBackendSearchResults] = useState<GearItem[] | null>(null);
+  const [isSearchingBackend, setIsSearchingBackend] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState('All');
   const [maxPrice, setMaxPrice] = useState(850);
   const [selectedCategories, setSelectedCategories] = useState<GearCategory[]>(
-    initialCategory ? [initialCategory] : ['cameras', 'audio', 'lighting']
+    initialCategory ? [initialCategory] : (initialQuery.trim() ? [] : ['cameras', 'audio', 'lighting'])
   );
   const [timeSlot, setTimeSlot] = useState<'today' | 'weekend' | 'tomorrow' | 'custom'>('weekend');
   const [depositFilter, setDepositFilter] = useState<'all' | 'zero' | 'token' | 'club'>('zero');
@@ -35,6 +41,69 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({
   const [quickFilter, setQuickFilter] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'rating' | 'price_asc' | 'landmark' | 'recent'>('rating');
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Sync external initialQuery prop changes (e.g. from Header or URL)
+  useEffect(() => {
+    setSearchQuery(initialQuery);
+    if (initialQuery.trim()) {
+      if (!initialCategory) {
+        setSelectedCategories([]);
+      }
+    }
+  }, [initialQuery, initialCategory]);
+
+  // Debounced backend search for real PostgreSQL matches
+  useEffect(() => {
+    const trimmed = searchQuery.trim();
+    if (!trimmed) {
+      setBackendSearchResults(null);
+      setIsSearchingBackend(false);
+      return;
+    }
+
+    let isCancelled = false;
+    setIsSearchingBackend(true);
+
+    const timer = setTimeout(async () => {
+      try {
+        const result = await equipmentApi.browse({
+          q: trimmed,
+          pageSize: 50,
+          sort: 'newest',
+        });
+        if (!isCancelled) {
+          const adapted = result.items.map(adaptEquipmentToGearItem);
+          setBackendSearchResults(adapted);
+          setIsSearchingBackend(false);
+        }
+      } catch {
+        if (!isCancelled) {
+          setBackendSearchResults(null);
+          setIsSearchingBackend(false);
+        }
+      }
+    }, 200);
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+    };
+  }, [searchQuery]);
+
+  const handleClearSearch = () => {
+    setSearchQuery('');
+    setBackendSearchResults(null);
+    if (onQueryChange) {
+      onQueryChange('');
+    }
+  };
+
+  const handleSearchInputChange = (val: string) => {
+    setSearchQuery(val);
+    if (onQueryChange) {
+      onQueryChange(val);
+    }
+  };
 
   // Category counts
   const categoryCounts = useMemo(() => {
@@ -63,18 +132,47 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({
     setActiveUseCase(null);
     setQuickFilter(null);
     setSearchQuery('');
+    setBackendSearchResults(null);
+    if (onQueryChange) {
+      onQueryChange('');
+    }
   };
 
   // Filter items
   const filteredItems = useMemo(() => {
-    return items.filter((item) => {
-      // Search query
-      if (searchQuery) {
-        const q = searchQuery.toLowerCase();
-        const matchTitle = item.title.toLowerCase().includes(q);
-        const matchSubtitle = item.subtitle.toLowerCase().includes(q);
-        const matchTags = item.tags.some((t) => t.toLowerCase().includes(q));
-        if (!matchTitle && !matchSubtitle && !matchTags) return false;
+    const sourceList = backendSearchResults !== null ? backendSearchResults : items;
+
+    return sourceList.filter((item) => {
+      // In-memory search fallback when backend search results aren't loaded
+      if (backendSearchResults === null && searchQuery.trim()) {
+        const q = searchQuery.trim().toLowerCase();
+        const matchTitle = item.title?.toLowerCase().includes(q);
+        const matchSubtitle = item.subtitle?.toLowerCase().includes(q);
+        const matchCategory =
+          item.category?.toLowerCase().includes(q) ||
+          item.categoryLabel?.toLowerCase().includes(q);
+        const matchTags = item.tags?.some((t) => t.toLowerCase().includes(q));
+        const matchUseCases = item.useCases?.some((u) => u.toLowerCase().includes(q));
+        const matchInclusions = item.inclusions?.some((inc) => inc.toLowerCase().includes(q));
+        const matchLocation = item.location?.toLowerCase().includes(q);
+        const matchSpecs = item.specs?.some(
+          (s) =>
+            s.label?.toLowerCase().includes(q) ||
+            s.value?.toLowerCase().includes(q) ||
+            s.desc?.toLowerCase().includes(q),
+        );
+        if (
+          !matchTitle &&
+          !matchSubtitle &&
+          !matchCategory &&
+          !matchTags &&
+          !matchUseCases &&
+          !matchInclusions &&
+          !matchLocation &&
+          !matchSpecs
+        ) {
+          return false;
+        }
       }
 
       // Categories
@@ -109,13 +207,13 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({
       if (quickFilter === 'weekend' && !item.isWeekendFriendly) return false;
 
       // Use Case
-      if (activeUseCase && !item.useCases.includes(activeUseCase as any)) {
+      if (activeUseCase && !item.useCases?.includes(activeUseCase as any)) {
         return false;
       }
 
       return true;
     });
-  }, [items, searchQuery, selectedCategories, maxPrice, selectedLocation, depositFilter, quickFilter, activeUseCase, isFavorited]);
+  }, [items, backendSearchResults, searchQuery, selectedCategories, maxPrice, selectedLocation, depositFilter, quickFilter, activeUseCase, isFavorited]);
 
   // Sort items
   const sortedItems = useMemo(() => {
@@ -484,6 +582,23 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({
               {/* Active filter pills & Quick Reset */}
               <div className="flex items-center flex-wrap gap-2 text-xs">
                 <span className="text-[#697a73] font-semibold text-[11px] uppercase tracking-wider">Active:</span>
+                {searchQuery.trim() && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#114b3f] text-white font-semibold border border-emerald-900 outline-hover-green shadow-xs">
+                    <span>
+                      Search: <span className="text-emerald-200">&ldquo;{searchQuery.trim()}&rdquo;</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleClearSearch}
+                      aria-label="Clear search filter"
+                      className="hover:text-red-300 cursor-pointer ml-0.5 flex items-center"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </span>
+                )}
                 {selectedCategories.length > 0 && (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#e8f3ef] text-[#114b3f] font-semibold border border-[#d1e7dd] outline-hover-green">
                     {selectedCategories.length} Categories
@@ -534,21 +649,54 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({
                 </button>
               </div>
 
-              {/* Sorting Selector with dark outline hover */}
-              <div className="flex items-center gap-2 self-end md:self-auto">
-                <label htmlFor="sort-by" className="text-xs font-semibold text-[#697a73] whitespace-nowrap">
-                  Sort:
-                </label>
-                <select
-                  id="sort-by"
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as any)}
-                  className="text-xs font-bold rounded-xl border border-[#e7e2d7] bg-[#fbf9f5] py-1.5 px-3 focus:outline-none focus:border-[#0d382f] text-[#0d382f] cursor-pointer outline-hover-green transition-all"
-                >
-                  <option value="rating">Highest Rated Peer</option>
-                  <option value="price_asc">Lowest Rate (₹/day)</option>
-                  <option value="landmark">Nearest Location</option>
-                </select>
+              {/* Right Controls: Quick Search Box & Sorting Selector */}
+              <div className="flex items-center gap-3 self-end md:self-auto flex-wrap">
+                <div className="relative min-w-[200px] max-w-xs">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => handleSearchInputChange(e.target.value)}
+                    placeholder="Search in catalog..."
+                    aria-label="Search equipment"
+                    className="w-full text-xs rounded-xl border border-[#e7e2d7] bg-[#fbf9f5] pl-8 pr-7 py-1.5 focus:outline-none focus:border-[#0d382f] text-[#0d382f] font-medium"
+                  />
+                  <svg
+                    className="w-3.5 h-3.5 text-stone-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={handleClearSearch}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 text-xs p-0.5 cursor-pointer"
+                      aria-label="Clear search text"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+                {isSearchingBackend && (
+                  <span className="w-3.5 h-3.5 border-2 border-[#114b3f] border-t-transparent rounded-full animate-spin shrink-0" title="Searching..." />
+                )}
+                <div className="flex items-center gap-2">
+                  <label htmlFor="sort-by" className="text-xs font-semibold text-[#697a73] whitespace-nowrap">
+                    Sort:
+                  </label>
+                  <select
+                    id="sort-by"
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as any)}
+                    className="text-xs font-bold rounded-xl border border-[#e7e2d7] bg-[#fbf9f5] py-1.5 px-3 focus:outline-none focus:border-[#0d382f] text-[#0d382f] cursor-pointer outline-hover-green transition-all"
+                  >
+                    <option value="rating">Highest Rated Peer</option>
+                    <option value="price_asc">Lowest Rate (₹/day)</option>
+                    <option value="landmark">Nearest Location</option>
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -602,16 +750,34 @@ export const CatalogScreen: React.FC<CatalogScreenProps> = ({
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
                 </div>
-                <h3 className="font-display text-lg font-bold text-[#114b3f]">No gear matched your exact filters</h3>
+                <h3 className="font-display text-lg font-bold text-[#114b3f]">
+                  {searchQuery.trim()
+                    ? `No gear found matching "${searchQuery.trim()}"`
+                    : 'No gear matched your exact filters'}
+                </h3>
                 <p className="text-xs text-[#697a73] max-w-md mx-auto">
-                  Try adjusting the rental rate slider, clearing category checkboxes, or post a Wanted Request on the campus board!
+                  {searchQuery.trim()
+                    ? 'Check your spelling, try broader keywords (e.g., "camera", "mic", "kit"), or post a Wanted Request on the campus board!'
+                    : 'Try adjusting the rental rate slider, clearing category checkboxes, or post a Wanted Request on the campus board!'}
                 </p>
-                <button
-                  onClick={handleResetFilters}
-                  className="px-4 py-2 rounded-xl bg-[#114b3f] text-white text-xs font-bold hover:bg-[#0c382f] cursor-pointer"
-                >
-                  Reset All Filters
-                </button>
+                <div className="flex items-center justify-center gap-3">
+                  {searchQuery.trim() && (
+                    <button
+                      type="button"
+                      onClick={handleClearSearch}
+                      className="px-4 py-2 rounded-xl bg-[#d96543] text-white text-xs font-bold hover:bg-[#c85635] cursor-pointer"
+                    >
+                      Clear Search Query
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleResetFilters}
+                    className="px-4 py-2 rounded-xl bg-[#114b3f] text-white text-xs font-bold hover:bg-[#0c382f] cursor-pointer"
+                  >
+                    Reset All Filters
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">

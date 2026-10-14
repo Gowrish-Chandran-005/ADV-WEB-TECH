@@ -35,6 +35,7 @@ export interface Booking {
   startAt: Date;
   endAt: Date;
   status: BookingStatus;
+  paymentStatus: 'UNPAID' | 'PENDING' | 'PAID' | 'FAILED';
   rentalDays: number;
   dailyRentalPrice: string;
   securityDeposit: string;
@@ -44,6 +45,33 @@ export interface Booking {
   returnRecordedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface PaymentRecord {
+  id: string;
+  bookingId: string;
+  payerId: string;
+  amount: string;
+  currency: string;
+  provider: string;
+  providerReference: string | null;
+  status: 'PENDING' | 'SUCCESS' | 'FAILED' | 'REFUNDED';
+  metadata: Record<string, unknown>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface UserPaymentRecord extends PaymentRecord {
+  bookingReference: string;
+  startAt: Date;
+  endAt: Date;
+  bookingStatus: BookingStatus;
+  bookingPaymentStatus: string;
+  totalPrice: string;
+  equipmentId: string;
+  equipmentTitle: string;
+  imageUrls: string[];
+  ownerName: string;
 }
 
 export interface MaintenanceBlock {
@@ -83,7 +111,8 @@ export type BookingTransitionResult =
   | 'not_found'
   | 'forbidden'
   | 'invalid_transition'
-  | 'expired';
+  | 'expired'
+  | 'dispute_hold';
 
 export interface AvailabilityResult {
   available: boolean;
@@ -118,4 +147,20 @@ export interface BookingRepository {
     userId: string,
   ): Promise<'deleted' | 'not_found' | 'forbidden'>;
   expirePending(): Promise<number>;
+  processMockPayment(
+    bookingId: string,
+    userId: string,
+    action: 'SUCCESS' | 'FAIL',
+  ): Promise<
+    | { payment: PaymentRecord; booking: Booking; alreadyPaid?: boolean }
+    | 'not_found'
+    | 'forbidden'
+    | 'not_approved'
+    | 'invalid_status'
+  >;
+  getPaymentsForBooking(
+    bookingId: string,
+    userId: string,
+  ): Promise<PaymentRecord[] | 'not_found' | 'forbidden'>;
+  listPaymentsForUser(userId: string): Promise<UserPaymentRecord[]>;
 }

@@ -104,8 +104,12 @@ function createHarness() {
     id: string;
     bookingId: string;
     reviewerId: string;
+    reviewedUserId: string;
+    equipmentId: string;
+    direction: 'RENTER_TO_OWNER' | 'OWNER_TO_RENTER';
     rating: number;
     comment: string | null;
+    status: 'PENDING_REVEAL' | 'REVEALED';
     createdAt: string;
     reviewerName: string;
   }> = [
@@ -113,8 +117,12 @@ function createHarness() {
       id: 'rev-1',
       bookingId: 'prev-booking-id',
       reviewerId: renterId,
+      reviewedUserId: ownerId,
+      equipmentId,
+      direction: 'RENTER_TO_OWNER',
       rating: 5,
       comment: 'Super crisp lens! Lender gave a thorough inspection.',
+      status: 'REVEALED',
       createdAt: '2026-10-12T10:00:00.000Z',
       reviewerName: 'Gowrish Chandran',
     },
@@ -126,14 +134,16 @@ function createHarness() {
 
   const mockReviewsRepo: ReviewsRepository = {
     async getEquipmentReviews(eqId: string, currentUserId?: string): Promise<EquipmentReviewsResponse> {
-      const items: PublicReview[] = reviews.map((r) => ({
-        id: r.id,
-        rating: r.rating,
-        comment: r.comment,
-        createdAt: r.createdAt,
-        reviewerName: r.reviewerName,
-        reviewerInitials: formatInitials(r.reviewerName),
-      }));
+      const items: PublicReview[] = reviews
+        .filter((r) => r.equipmentId === eqId && r.direction === 'RENTER_TO_OWNER' && r.status === 'REVEALED')
+        .map((r) => ({
+          id: r.id,
+          rating: r.rating,
+          comment: r.comment,
+          createdAt: r.createdAt,
+          reviewerName: r.reviewerName,
+          reviewerInitials: formatInitials(r.reviewerName),
+        }));
 
       const distribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
       let sum = 0;
@@ -153,7 +163,7 @@ function createHarness() {
 
     async findEligibleBookingId(eqId: string, userId: string): Promise<string | null> {
       if (userId === renterId && bookingStatus === 'COMPLETED') {
-        const alreadyReviewed = reviews.some((r) => r.bookingId === bookingId);
+        const alreadyReviewed = reviews.some((r) => r.bookingId === bookingId && r.direction === 'RENTER_TO_OWNER');
         return alreadyReviewed ? null : bookingId;
       }
       return null;
@@ -163,38 +173,170 @@ function createHarness() {
       if (bId !== bookingId) {
         throw new HttpError(404, 'BOOKING_NOT_FOUND', 'The booking was not found.');
       }
-      if (revId !== bookingRenterId) {
-        throw new HttpError(403, 'FORBIDDEN', 'Only the renter of this booking can review the equipment.');
-      }
-      if (revId === bookingOwnerId) {
-        throw new HttpError(403, 'FORBIDDEN', 'Owners cannot review their own equipment.');
-      }
       if (bookingStatus !== 'COMPLETED') {
         throw new HttpError(422, 'BOOKING_NOT_COMPLETED', 'Reviews can only be submitted for completed bookings.');
       }
-      if (reviews.some((r) => r.bookingId === bId)) {
-        throw new HttpError(409, 'REVIEW_ALREADY_EXISTS', 'A review has already been submitted for this booking.');
+
+      let direction: 'RENTER_TO_OWNER' | 'OWNER_TO_RENTER';
+      let reviewedUserId: string;
+      if (revId === bookingRenterId) {
+        direction = 'RENTER_TO_OWNER';
+        reviewedUserId = bookingOwnerId;
+      } else if (revId === bookingOwnerId) {
+        direction = 'OWNER_TO_RENTER';
+        reviewedUserId = bookingRenterId;
+      } else {
+        throw new HttpError(403, 'FORBIDDEN', 'Only the renter or owner of this booking can submit a review.');
       }
+
+      if (revId === reviewedUserId) {
+        throw new HttpError(403, 'FORBIDDEN', 'Owners cannot review their own equipment or self.');
+      }
+
+      if (reviews.some((r) => r.bookingId === bId && r.direction === direction)) {
+        throw new HttpError(409, 'REVIEW_ALREADY_EXISTS', 'A review has already been submitted for this booking in this direction.');
+      }
+
+      const reciprocal = reviews.find((r) => r.bookingId === bId && r.direction !== direction);
+      const isRevealed = !!reciprocal;
 
       const user = users.get(revId)!;
       const created = {
-        id: 'rev-new',
+        id: `rev-${reviews.length + 1}`,
         bookingId: bId,
         reviewerId: revId,
+        reviewedUserId,
+        equipmentId,
+        direction,
         rating: input.rating,
         comment: input.comment ?? null,
+        status: isRevealed ? ('REVEALED' as const) : ('PENDING_REVEAL' as const),
         createdAt: new Date().toISOString(),
         reviewerName: user.fullName,
       };
+
+      if (reciprocal) {
+        reciprocal.status = 'REVEALED';
+      }
       reviews.push(created);
 
       return {
         id: created.id,
         rating: created.rating,
         comment: created.comment,
+        direction: created.direction,
+        status: created.status,
         createdAt: created.createdAt,
         reviewerName: created.reviewerName,
         reviewerInitials: formatInitials(created.reviewerName),
+      };
+    },
+
+    async getBookingReviews(bId: string, currentUserId: string): Promise<any> {
+      if (bId !== bookingId) {
+        throw new HttpError(404, 'BOOKING_NOT_FOUND', 'The booking was not found.');
+      }
+      const isRenter = currentUserId === bookingRenterId;
+      const isOwner = currentUserId === bookingOwnerId;
+      if (!isRenter && !isOwner) {
+        throw new HttpError(403, 'FORBIDDEN', 'You are not authorized to view reviews for this booking.');
+      }
+
+      const myDirection = isRenter ? 'RENTER_TO_OWNER' : 'OWNER_TO_RENTER';
+      const partnerDirection = isRenter ? 'OWNER_TO_RENTER' : 'RENTER_TO_OWNER';
+
+      const myRow = reviews.find((r) => r.bookingId === bId && r.direction === myDirection);
+      const partnerRow = reviews.find((r) => r.bookingId === bId && r.direction === partnerDirection);
+
+      const bothSubmitted = !!myRow && !!partnerRow;
+
+      const myReview = myRow
+        ? {
+            id: myRow.id,
+            rating: myRow.rating,
+            comment: myRow.comment,
+            status: myRow.status,
+            createdAt: myRow.createdAt,
+            reviewerName: myRow.reviewerName,
+            reviewerInitials: formatInitials(myRow.reviewerName),
+            isRevealed: myRow.status === 'REVEALED' || bothSubmitted,
+          }
+        : null;
+
+      let partnerReview = null;
+      if (partnerRow) {
+        if (partnerRow.status === 'REVEALED' || bothSubmitted) {
+          partnerReview = {
+            id: partnerRow.id,
+            rating: partnerRow.rating,
+            comment: partnerRow.comment,
+            status: 'REVEALED' as const,
+            createdAt: partnerRow.createdAt,
+            reviewerName: partnerRow.reviewerName,
+            reviewerInitials: formatInitials(partnerRow.reviewerName),
+            isRevealed: true,
+          };
+        } else {
+          partnerReview = {
+            status: 'PENDING_REVEAL' as const,
+            createdAt: partnerRow.createdAt,
+            isRevealed: false,
+          };
+        }
+      }
+
+      return {
+        bookingId: bId,
+        status: bookingStatus,
+        canReview: bookingStatus === 'COMPLETED' && !myRow,
+        myRole: isRenter ? 'renter' : 'owner',
+        myDirection,
+        myReview,
+        partnerReview,
+      };
+    },
+
+    async getUserReputation(userId: string): Promise<any> {
+      const ownerRev = reviews.filter(
+        (r) => r.reviewedUserId === userId && r.direction === 'RENTER_TO_OWNER' && r.status === 'REVEALED',
+      );
+      const renterRev = reviews.filter(
+        (r) => r.reviewedUserId === userId && r.direction === 'OWNER_TO_RENTER' && r.status === 'REVEALED',
+      );
+
+      const calcAvg = (list: typeof ownerRev) => {
+        if (list.length === 0) return null;
+        return Math.round((list.reduce((acc, c) => acc + c.rating, 0) / list.length) * 10) / 10;
+      };
+
+      return {
+        userId,
+        ownerReputation: {
+          averageRating: calcAvg(ownerRev),
+          reviewCount: ownerRev.length,
+          completedRentals: ownerRev.length,
+          reviews: ownerRev.map((r) => ({
+            id: r.id,
+            rating: r.rating,
+            comment: r.comment,
+            createdAt: r.createdAt,
+            reviewerName: r.reviewerName,
+            reviewerInitials: formatInitials(r.reviewerName),
+          })),
+        },
+        renterReputation: {
+          averageRating: calcAvg(renterRev),
+          reviewCount: renterRev.length,
+          completedRentals: renterRev.length,
+          reviews: renterRev.map((r) => ({
+            id: r.id,
+            rating: r.rating,
+            comment: r.comment,
+            createdAt: r.createdAt,
+            reviewerName: r.reviewerName,
+            reviewerInitials: formatInitials(r.reviewerName),
+          })),
+        },
       };
     },
   };
@@ -329,7 +471,7 @@ describe('Reviews & Ratings Module', () => {
       expect(res.body.error.code).toBe('BOOKING_NOT_COMPLETED');
     });
 
-    it('rejects review when submitted by non-renter student', async () => {
+    it('rejects review when submitted by non-renter / non-owner student', async () => {
       const { app } = createHarness();
       const res = await request(app)
         .post(`/api/v1/bookings/${bookingId}/reviews`)
@@ -340,7 +482,7 @@ describe('Reviews & Ratings Module', () => {
       expect(res.body.error.code).toBe('FORBIDDEN');
     });
 
-    it('rejects owner reviewing their own equipment', async () => {
+    it('rejects owner reviewing their own equipment or self', async () => {
       const { app, setBookingRenterId, setBookingOwnerId } = createHarness();
       setBookingRenterId(ownerId);
       setBookingOwnerId(ownerId);
@@ -368,7 +510,20 @@ describe('Reviews & Ratings Module', () => {
       expect(res.body.review.reviewerInitials).toBe('GC');
     });
 
-    it('enforces one review per booking (duplicate returns 409)', async () => {
+    it('creates review successfully for completed booking by owner (OWNER_TO_RENTER)', async () => {
+      const { app } = createHarness();
+      const res = await request(app)
+        .post(`/api/v1/bookings/${bookingId}/reviews`)
+        .set('Authorization', `Bearer ${tokenFor(ownerId)}`)
+        .send({ rating: 5, comment: 'Renter returned equipment in immaculate condition.' });
+
+      expect(res.status).toBe(201);
+      expect(res.body.review.rating).toBe(5);
+      expect(res.body.review.direction).toBe('OWNER_TO_RENTER');
+      expect(res.body.review.reviewerName).toBe('Aditya Kumar');
+    });
+
+    it('enforces one review per direction per booking (duplicate returns 409)', async () => {
       const { app } = createHarness();
       // First submission
       const res1 = await request(app)
@@ -377,7 +532,7 @@ describe('Reviews & Ratings Module', () => {
         .send({ rating: 4 });
       expect(res1.status).toBe(201);
 
-      // Second submission for same booking
+      // Second submission for same booking by same renter
       const res2 = await request(app)
         .post(`/api/v1/bookings/${bookingId}/reviews`)
         .set('Authorization', `Bearer ${tokenFor(renterId)}`)
@@ -385,6 +540,94 @@ describe('Reviews & Ratings Module', () => {
 
       expect(res2.status).toBe(409);
       expect(res2.body.error.code).toBe('REVIEW_ALREADY_EXISTS');
+    });
+  });
+
+  describe('GET /api/v1/bookings/:id/reviews (Double-Blind Trust Reviews)', () => {
+    it('rejects unauthorized third party user from viewing booking reviews', async () => {
+      const { app } = createHarness();
+      const res = await request(app)
+        .get(`/api/v1/bookings/${bookingId}/reviews`)
+        .set('Authorization', `Bearer ${tokenFor(thirdPartyId)}`);
+
+      expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe('FORBIDDEN');
+    });
+
+    it('conceals partner review details until both parties submit (fair double-blind)', async () => {
+      const { app } = createHarness();
+
+      // 1. Renter submits review
+      await request(app)
+        .post(`/api/v1/bookings/${bookingId}/reviews`)
+        .set('Authorization', `Bearer ${tokenFor(renterId)}`)
+        .send({ rating: 5, comment: 'Outstanding lender!' });
+
+      // 2. Owner checks reviews before submitting their own
+      const ownerViewRes = await request(app)
+        .get(`/api/v1/bookings/${bookingId}/reviews`)
+        .set('Authorization', `Bearer ${tokenFor(ownerId)}`);
+
+      expect(ownerViewRes.status).toBe(200);
+      expect(ownerViewRes.body.myRole).toBe('owner');
+      expect(ownerViewRes.body.canReview).toBe(true);
+      expect(ownerViewRes.body.myReview).toBeNull();
+      // Partner (renter) submitted, but rating and comment are hidden!
+      expect(ownerViewRes.body.partnerReview).toBeDefined();
+      expect(ownerViewRes.body.partnerReview.isRevealed).toBe(false);
+      expect(ownerViewRes.body.partnerReview.rating).toBeUndefined();
+      expect(ownerViewRes.body.partnerReview.comment).toBeUndefined();
+      expect(ownerViewRes.body.partnerReview.status).toBe('PENDING_REVEAL');
+
+      // 3. Owner submits review -> both reviews should reveal immediately
+      await request(app)
+        .post(`/api/v1/bookings/${bookingId}/reviews`)
+        .set('Authorization', `Bearer ${tokenFor(ownerId)}`)
+        .send({ rating: 4, comment: 'Great renter, timely return.' });
+
+      // 4. Now owner views again -> both revealed!
+      const revealedRes = await request(app)
+        .get(`/api/v1/bookings/${bookingId}/reviews`)
+        .set('Authorization', `Bearer ${tokenFor(ownerId)}`);
+
+      expect(revealedRes.status).toBe(200);
+      expect(revealedRes.body.partnerReview.isRevealed).toBe(true);
+      expect(revealedRes.body.partnerReview.rating).toBe(5);
+      expect(revealedRes.body.partnerReview.comment).toBe('Outstanding lender!');
+      expect(revealedRes.body.myReview.isRevealed).toBe(true);
+      expect(revealedRes.body.myReview.rating).toBe(4);
+    });
+  });
+
+  describe('GET /api/v1/users/:id/reputation & /me/reputation', () => {
+    it('returns separated owner and renter reputation metrics', async () => {
+      const { app } = createHarness();
+
+      const res = await request(app)
+        .get(`/api/v1/users/${ownerId}/reputation`)
+        .set('Authorization', `Bearer ${tokenFor(renterId)}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.ownerReputation).toBeDefined();
+      expect(res.body.renterReputation).toBeDefined();
+      // Owner received review from rev-1
+      expect(res.body.ownerReputation.averageRating).toBe(5);
+      expect(res.body.ownerReputation.reviewCount).toBe(1);
+      // Renter has no reviews as renter yet -> null average rating
+      expect(res.body.renterReputation.averageRating).toBeNull();
+      expect(res.body.renterReputation.reviewCount).toBe(0);
+    });
+
+    it('returns own reputation at /api/v1/users/me/reputation', async () => {
+      const { app } = createHarness();
+
+      const res = await request(app)
+        .get('/api/v1/users/me/reputation')
+        .set('Authorization', `Bearer ${tokenFor(ownerId)}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.userId).toBe(ownerId);
+      expect(res.body.ownerReputation.averageRating).toBe(5);
     });
   });
 
@@ -402,3 +645,4 @@ describe('Reviews & Ratings Module', () => {
     });
   });
 });
+

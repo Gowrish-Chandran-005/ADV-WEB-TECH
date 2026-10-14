@@ -79,10 +79,24 @@ function baseFilters(filters: EquipmentFilters): { conditions: string[]; values:
   if (filters.maxPrice !== undefined) {
     appendFilter(conditions, values, 'e.daily_rental_price <= ?', filters.maxPrice);
   }
-  if (filters.query) {
-    values.push(`%${filters.query.replace(/[\\%_]/g, '\\$&')}%`);
-    const placeholder = `$${values.length}`;
-    conditions.push(`(e.title ILIKE ${placeholder} ESCAPE '\\' OR e.description ILIKE ${placeholder} ESCAPE '\\')`);
+  const rawSearch = filters.query ?? filters.q;
+  if (rawSearch) {
+    const trimmed = rawSearch.trim();
+    if (trimmed.length > 0) {
+      values.push(`%${trimmed.replace(/[\\%_]/g, '\\$&')}%`);
+      const placeholder = `$${values.length}`;
+      conditions.push(`(
+        e.title ILIKE ${placeholder} ESCAPE '\\'
+        OR e.description ILIKE ${placeholder} ESCAPE '\\'
+        OR category.name ILIKE ${placeholder} ESCAPE '\\'
+        OR category.slug ILIKE ${placeholder} ESCAPE '\\'
+        OR array_to_string(e.tags, ' ') ILIKE ${placeholder} ESCAPE '\\'
+        OR array_to_string(e.features, ' ') ILIKE ${placeholder} ESCAPE '\\'
+        OR array_to_string(e.use_cases, ' ') ILIKE ${placeholder} ESCAPE '\\'
+        OR e.specifications::text ILIKE ${placeholder} ESCAPE '\\'
+        OR e.pickup_location ILIKE ${placeholder} ESCAPE '\\'
+      )`);
+    }
   }
 
   return { conditions, values };

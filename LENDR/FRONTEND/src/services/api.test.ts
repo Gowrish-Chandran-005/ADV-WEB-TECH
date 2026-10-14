@@ -10,11 +10,16 @@ import {
   favoritesApi,
   maintenanceApi,
   reviewsApi,
+  bookingsApi,
+  paymentsApi,
+  usersApi,
+  equipmentApi,
   ApiError,
   type ApiWantedRequest,
   type ApiMatchedEquipmentItem,
   type ApiBooking,
   type ApiMaintenanceBlock,
+  type ApiPaymentRecord,
 } from './api';
 import {
   adaptWantedRequestToPost,
@@ -1059,5 +1064,470 @@ describe('Frontend Wanted & Notifications API Client', () => {
       },
     );
   });
+
+  it('paymentsApi.pay sends POST /bookings/:id/pay with Bearer token and simulation flag', async () => {
+    localStorage.setItem('lendr_token', 'mock-token-xyz');
+    const mockPayment: ApiPaymentRecord = {
+      id: 'pay-uuid-1',
+      bookingId: 'booking-uuid-1',
+      payerId: 'user-uuid-1',
+      amount: '750.00',
+      currency: 'INR',
+      status: 'SUCCESS',
+      provider: 'MOCK_PG',
+      providerReference: 'MOCK-TXN-12345678',
+      metadata: {},
+      createdAt: '2026-10-14T12:00:00.000Z',
+      updatedAt: '2026-10-14T12:00:00.000Z',
+    };
+    const mockBooking: ApiBooking = {
+      id: 'booking-uuid-1',
+      equipmentId: 'eq-1',
+      equipmentTitle: 'Sony A7 IV',
+      equipmentStatus: 'ACTIVE',
+      renterId: 'user-uuid-1',
+      renterFullName: 'Aarav Sharma',
+      ownerUserId: 'owner-uuid-1',
+      organizationId: null,
+      startAt: '2026-10-20T00:00:00.000Z',
+      endAt: '2026-10-23T00:00:00.000Z',
+      rentalDays: 3,
+      dailyRentalPrice: '250.00',
+      totalPrice: '750.00',
+      securityDeposit: '500.00',
+      status: 'APPROVED',
+      paymentStatus: 'PAID',
+      notes: null,
+      expiresAt: '2026-10-20T00:00:00.000Z',
+      createdAt: '2026-10-14T10:00:00.000Z',
+      updatedAt: '2026-10-14T12:00:00.000Z',
+    };
+
+    mockFetch({ payment: mockPayment, booking: mockBooking, alreadyPaid: false }, 200);
+
+    const res = await paymentsApi.pay('booking-uuid-1', 'SUCCESS');
+
+    assert.equal(lastFetchUrl, '/api/v1/bookings/booking-uuid-1/pay');
+    const authHeader = (lastFetchOptions?.headers as Record<string, string>)?.Authorization;
+    assert.equal(authHeader, 'Bearer mock-token-xyz');
+    const body = JSON.parse(String(lastFetchOptions?.body));
+    assert.equal(body.action, 'SUCCESS');
+    assert.equal(res.payment.status, 'SUCCESS');
+    assert.equal(res.booking.paymentStatus, 'PAID');
+    assert.equal(res.alreadyPaid, false);
+  });
+
+  it('paymentsApi.pay handles simulated failure correctly', async () => {
+    localStorage.setItem('lendr_token', 'mock-token-xyz');
+    const mockPayment: ApiPaymentRecord = {
+      id: 'pay-uuid-fail',
+      bookingId: 'booking-uuid-2',
+      payerId: 'user-uuid-1',
+      amount: '500.00',
+      currency: 'INR',
+      status: 'FAILED',
+      provider: 'MOCK_PG',
+      providerReference: null,
+      metadata: {},
+      createdAt: '2026-10-14T12:00:00.000Z',
+      updatedAt: '2026-10-14T12:00:00.000Z',
+    };
+    const mockBooking: ApiBooking = {
+      id: 'booking-uuid-2',
+      equipmentId: 'eq-2',
+      equipmentTitle: 'Rode Wireless GO II',
+      equipmentStatus: 'ACTIVE',
+      renterId: 'user-uuid-1',
+      renterFullName: 'Aarav Sharma',
+      ownerUserId: 'owner-uuid-1',
+      organizationId: null,
+      startAt: '2026-10-20T00:00:00.000Z',
+      endAt: '2026-10-23T00:00:00.000Z',
+      rentalDays: 3,
+      dailyRentalPrice: '166.67',
+      totalPrice: '500.00',
+      securityDeposit: '0.00',
+      status: 'APPROVED',
+      paymentStatus: 'FAILED',
+      notes: null,
+      expiresAt: '2026-10-20T00:00:00.000Z',
+      createdAt: '2026-10-14T10:00:00.000Z',
+      updatedAt: '2026-10-14T12:00:00.000Z',
+    };
+
+    mockFetch({ payment: mockPayment, booking: mockBooking, alreadyPaid: false }, 200);
+
+    const res = await paymentsApi.pay('booking-uuid-2', 'FAIL');
+
+    assert.equal(lastFetchUrl, '/api/v1/bookings/booking-uuid-2/pay');
+    const body = JSON.parse(String(lastFetchOptions?.body));
+    assert.equal(body.action, 'FAIL');
+    assert.equal(res.payment.status, 'FAILED');
+    assert.equal(res.booking.paymentStatus, 'FAILED');
+  });
+
+  it('paymentsApi.pay throws ApiError on 409 BOOKING_NOT_APPROVED and 403 FORBIDDEN', async () => {
+    mockFetch(
+      { code: 'BOOKING_NOT_APPROVED', message: 'Payment can only be processed after owner approval.' },
+      409,
+    );
+
+    await assert.rejects(
+      async () => {
+        await paymentsApi.pay('booking-pending', 'SUCCESS');
+      },
+      (err: unknown) => {
+        assert.ok(err instanceof ApiError);
+        assert.equal(err.status, 409);
+        assert.equal(err.code, 'BOOKING_NOT_APPROVED');
+        return true;
+      },
+    );
+
+    mockFetch(
+      { code: 'FORBIDDEN', message: 'Only the renter can pay for this booking.' },
+      403,
+    );
+
+    await assert.rejects(
+      async () => {
+        await paymentsApi.pay('booking-other-renter', 'SUCCESS');
+      },
+      (err: unknown) => {
+        assert.ok(err instanceof ApiError);
+        assert.equal(err.status, 403);
+        assert.equal(err.code, 'FORBIDDEN');
+        return true;
+      },
+    );
+  });
+
+  it('paymentsApi.listForBooking fetches payment audit records', async () => {
+    localStorage.setItem('lendr_token', 'mock-token-xyz');
+    const mockPayments: ApiPaymentRecord[] = [
+      {
+        id: 'pay-1',
+        bookingId: 'booking-1',
+        payerId: 'user-1',
+        amount: '1200.00',
+        currency: 'INR',
+        status: 'SUCCESS',
+        provider: 'MOCK_PG',
+        providerReference: 'MOCK-TXN-ABC',
+        metadata: {},
+        createdAt: '2026-10-14T12:00:00.000Z',
+        updatedAt: '2026-10-14T12:00:00.000Z',
+      },
+    ];
+
+    mockFetch({ items: mockPayments }, 200);
+
+    const res = await paymentsApi.listForBooking('booking-1');
+    assert.equal(lastFetchUrl, '/api/v1/bookings/booking-1/payments');
+    assert.equal(res.items.length, 1);
+    assert.equal(res.items[0].providerReference, 'MOCK-TXN-ABC');
+  });
+
+  it('bookingsApi.pay delegates to paymentsApi.pay', async () => {
+    mockFetch({
+      payment: {
+        id: 'pay-123',
+        bookingId: 'booking-abc',
+        payerId: 'user-1',
+        amount: '800.00',
+        currency: 'INR',
+        status: 'SUCCESS',
+        provider: 'MOCK_PG',
+        providerReference: 'MOCK-TXN-999',
+        metadata: {},
+        createdAt: '2026-10-14T12:00:00.000Z',
+        updatedAt: '2026-10-14T12:00:00.000Z',
+      },
+      booking: {
+        id: 'booking-abc',
+        equipmentId: 'eq-1',
+        equipmentTitle: 'GoPro Hero 12',
+        equipmentStatus: 'ACTIVE',
+        renterId: 'user-1',
+        renterFullName: 'Aarav Sharma',
+        ownerUserId: 'owner-uuid-1',
+        organizationId: null,
+        startAt: '2026-10-25T00:00:00.000Z',
+        endAt: '2026-10-27T00:00:00.000Z',
+        rentalDays: 2,
+        dailyRentalPrice: '400.00',
+        totalPrice: '800.00',
+        securityDeposit: '0.00',
+        status: 'APPROVED',
+        paymentStatus: 'PAID',
+        notes: null,
+        expiresAt: '2026-10-25T00:00:00.000Z',
+        createdAt: '2026-10-14T10:00:00.000Z',
+        updatedAt: '2026-10-14T12:00:00.000Z',
+      },
+      alreadyPaid: false,
+    }, 200);
+
+    const res = await bookingsApi.pay('booking-abc', { action: 'SUCCESS' });
+    assert.equal(res.payment.id, 'pay-123');
+    assert.equal(res.booking.paymentStatus, 'PAID');
+  });
+
+  it('adaptBookingToRequest maps paymentStatus accurately with lowercase conversion', () => {
+    const rawApiBooking: ApiBooking = {
+      id: 'b-status-check',
+      equipmentId: 'eq-1',
+      equipmentTitle: '4K Projector',
+      equipmentStatus: 'ACTIVE',
+      renterId: 'renter-1',
+      renterFullName: 'Aarav Sharma',
+      ownerUserId: 'owner-2',
+      organizationId: null,
+      startAt: '2026-10-25T00:00:00.000Z',
+      endAt: '2026-10-27T00:00:00.000Z',
+      rentalDays: 2,
+      dailyRentalPrice: '600.00',
+      totalPrice: '1500.00',
+      securityDeposit: '300.00',
+      status: 'APPROVED',
+      paymentStatus: 'PAID',
+      notes: 'Need for hackathon pitch',
+      expiresAt: '2026-10-25T00:00:00.000Z',
+      createdAt: '2026-10-14T10:00:00.000Z',
+      updatedAt: '2026-10-14T12:00:00.000Z',
+    };
+
+    const adapted = adaptBookingToRequest(rawApiBooking);
+    assert.equal(adapted.paymentStatus, 'paid');
+    assert.equal(adapted.status, 'approved');
+    assert.equal(adapted.totalAmount, 1500);
+
+    // Unpaid fallback
+    const rawUnpaid: ApiBooking = {
+      ...rawApiBooking,
+      paymentStatus: 'UNPAID',
+    };
+    assert.equal(adaptBookingToRequest(rawUnpaid).paymentStatus, 'unpaid');
+
+    // Failed fallback
+    const rawFailed: ApiBooking = {
+      ...rawApiBooking,
+      paymentStatus: 'FAILED',
+    };
+    assert.equal(adaptBookingToRequest(rawFailed).paymentStatus, 'failed');
+  });
+
+  // 42. Student Profile & My Gear Hub Endpoints
+  it('updates profile via usersApi.updateProfile with PATCH to /users/me', async () => {
+    mockFetch({
+      user: {
+        id: 'u-1',
+        fullName: 'Aarav Sharma Updated',
+        registrationNumber: '21BCE1042',
+        phone: '9876543210',
+      },
+    });
+
+    const res = await usersApi.updateProfile({
+      fullName: 'Aarav Sharma Updated',
+      registrationNumber: '21BCE1042',
+      phone: '9876543210',
+    });
+
+    assert.equal(res.user.fullName, 'Aarav Sharma Updated');
+    assert.equal(res.user.registrationNumber, '21BCE1042');
+    assert.match(lastFetchUrl, /\/api\/v1\/users\/me$/);
+    assert.equal(lastFetchOptions?.method, 'PATCH');
+    const body = JSON.parse(lastFetchOptions?.body as string);
+    assert.equal(body.fullName, 'Aarav Sharma Updated');
+    assert.equal(body.registrationNumber, '21BCE1042');
+    assert.equal(body.phone, '9876543210');
+  });
+
+  it('fetches student payments via paymentsApi.myPayments', async () => {
+    mockFetch({
+      items: [
+        {
+          id: 'pay-1',
+          bookingId: 'b-1',
+          amount: '1200.00',
+          status: 'SUCCESS',
+          equipmentTitle: 'Sony FX3',
+        },
+      ],
+    });
+
+    const res = await paymentsApi.myPayments();
+    assert.equal(res.items.length, 1);
+    assert.equal(res.items[0].equipmentTitle, 'Sony FX3');
+    assert.match(lastFetchUrl, /\/api\/v1\/users\/me\/payments$/);
+  });
+
+  it('fetches student wanted requests with offers via wantedApi.myRequests', async () => {
+    mockFetch({
+      items: [
+        {
+          id: 'w-1',
+          title: 'Need Gimbal',
+          status: 'OPEN',
+          offers: [
+            { id: 'off-1', equipmentTitle: 'Ronin RS3', status: 'PENDING' },
+          ],
+        },
+      ],
+    });
+
+    const res = await wantedApi.myRequests();
+    assert.equal(res.items.length, 1);
+    assert.equal(res.items[0].offers.length, 1);
+    assert.equal(res.items[0].offers[0].equipmentTitle, 'Ronin RS3');
+    assert.match(lastFetchUrl, /\/api\/v1\/wanted\/my\/requests$/);
+  });
+
+  it('fetches student sent offers via wantedApi.myOffers', async () => {
+    mockFetch({
+      items: [
+        {
+          id: 'off-2',
+          wantedRequestTitle: 'Need Sony A7 IV',
+          equipmentTitle: 'Sony A7 IV Body',
+          status: 'ACCEPTED',
+        },
+      ],
+    });
+
+    const res = await wantedApi.myOffers();
+    assert.equal(res.items.length, 1);
+    assert.equal(res.items[0].equipmentTitle, 'Sony A7 IV Body');
+    assert.match(lastFetchUrl, /\/api\/v1\/wanted\/my\/offers$/);
+  });
+
+  it('equipmentApi.browse constructs search query with q parameter correctly', async () => {
+    mockFetch({
+      items: [
+        {
+          id: 'eq-cam-1',
+          title: 'Sony Alpha FX3 Cinema Camera',
+          categoryId: 'cat-cameras',
+          categoryName: 'Cameras',
+          categorySlug: 'cameras',
+          description: 'Full-frame cinema line camera',
+          dailyRentalPrice: '1200.00',
+          tags: ['cinema', '4k'],
+          features: ['4K 120fps'],
+          useCases: ['filmmaking'],
+          specifications: { brand: 'Sony' },
+          imageUrls: ['/uploads/fx3.jpg'],
+          status: 'ACTIVE',
+        },
+      ],
+      pagination: { page: 1, pageSize: 50, total: 1, totalPages: 1 },
+    });
+
+    const res = await equipmentApi.browse({ q: 'Sony Alpha', pageSize: 50, sort: 'newest' });
+    assert.equal(res.items.length, 1);
+    assert.equal(res.items[0].title, 'Sony Alpha FX3 Cinema Camera');
+    assert.match(lastFetchUrl, /\/api\/v1\/equipment\?/);
+    assert.match(lastFetchUrl, /q=Sony\+Alpha/);
+    assert.match(lastFetchUrl, /pageSize=50/);
+    assert.match(lastFetchUrl, /sort=newest/);
+  });
+
+  it('equipmentApi.browse handles full filter set alongside search query', async () => {
+    mockFetch({
+      items: [],
+      pagination: { page: 1, pageSize: 20, total: 0, totalPages: 0 },
+    });
+
+    await equipmentApi.browse({
+      q: 'Arduino',
+      category: 'makers',
+      minPrice: 50,
+      maxPrice: 500,
+      sort: 'price_asc',
+    });
+
+    assert.match(lastFetchUrl, /q=Arduino/);
+    assert.match(lastFetchUrl, /category=makers/);
+    assert.match(lastFetchUrl, /minPrice=50/);
+    assert.match(lastFetchUrl, /maxPrice=500/);
+    assert.match(lastFetchUrl, /sort=price_asc/);
+  });
+
+  it('equipmentApi.browse without q omits search parameter from URL', async () => {
+    mockFetch({
+      items: [],
+      pagination: { page: 1, pageSize: 20, total: 0, totalPages: 0 },
+    });
+
+    await equipmentApi.browse({ pageSize: 20 });
+    assert.ok(!lastFetchUrl.includes('q='));
+    assert.match(lastFetchUrl, /pageSize=20/);
+  });
+
+  // 43. Two-Way Trust Reviews & Lifecycle APIs
+  it('bookingsApi.start calls /bookings/:id/start via POST with auth header', async () => {
+    localStorage.setItem('lendr_token', 'test-owner-token');
+    mockFetch({ booking: { id: 'b-start-1', status: 'ACTIVE' } });
+
+    const res = await bookingsApi.start('b-start-1');
+    assert.equal(res.booking.id, 'b-start-1');
+    assert.equal(res.booking.status, 'ACTIVE');
+    assert.equal(lastFetchUrl, '/api/v1/bookings/b-start-1/start');
+    assert.equal(lastFetchOptions?.method, 'POST');
+    assert.equal(
+      (lastFetchOptions?.headers as Record<string, string>)?.Authorization,
+      'Bearer test-owner-token',
+    );
+  });
+
+  it('reviewsApi.getForBooking fetches double-blind review summary', async () => {
+    mockFetch({
+      bookingId: 'b-rev-1',
+      status: 'COMPLETED',
+      canReview: false,
+      myRole: 'renter',
+      myDirection: 'RENTER_TO_OWNER',
+      myReview: { id: 'r-1', rating: 5, comment: 'Super!', status: 'PENDING_REVEAL', isRevealed: false },
+      partnerReview: { status: 'PENDING_REVEAL', isRevealed: false },
+    });
+
+    const summary = await reviewsApi.getForBooking('b-rev-1');
+    assert.equal(summary.bookingId, 'b-rev-1');
+    assert.equal(summary.canReview, false);
+    assert.equal(summary.myRole, 'renter');
+    assert.equal(summary.partnerReview?.isRevealed, false);
+    assert.equal(lastFetchUrl, '/api/v1/bookings/b-rev-1/reviews');
+  });
+
+  it('reviewsApi.getUserReputation fetches separated owner and renter reputation metrics', async () => {
+    mockFetch({
+      userId: 'u-target-1',
+      ownerReputation: { averageRating: 4.8, reviewCount: 5, completedRentals: 6, reviews: [] },
+      renterReputation: { averageRating: 5.0, reviewCount: 2, completedRentals: 2, reviews: [] },
+    });
+
+    const rep = await reviewsApi.getUserReputation('u-target-1');
+    assert.equal(rep.userId, 'u-target-1');
+    assert.equal(rep.ownerReputation.averageRating, 4.8);
+    assert.equal(rep.renterReputation.averageRating, 5.0);
+    assert.equal(lastFetchUrl, '/api/v1/users/u-target-1/reputation');
+  });
+
+  it('reviewsApi.getMyReputation calls /users/me/reputation', async () => {
+    mockFetch({
+      userId: 'u-me-1',
+      ownerReputation: { averageRating: null, reviewCount: 0, completedRentals: 0, reviews: [] },
+      renterReputation: { averageRating: 4.5, reviewCount: 4, completedRentals: 5, reviews: [] },
+    });
+
+    const rep = await reviewsApi.getMyReputation();
+    assert.equal(rep.userId, 'u-me-1');
+    assert.equal(rep.ownerReputation.averageRating, null);
+    assert.equal(rep.renterReputation.reviewCount, 4);
+    assert.equal(lastFetchUrl, '/api/v1/users/me/reputation');
+  });
 });
+
+
 

@@ -6,6 +6,7 @@ import {
   uploadApi,
   ApiCategory,
   ApiEquipmentListing,
+  type ApiWantedRequest,
 } from '../services/api';
 import { adaptEquipmentToGearItem } from '../services/adapters';
 import { useAuth } from '../context/AuthContext';
@@ -14,6 +15,7 @@ interface ListEquipmentScreenProps {
   onBack: () => void;
   onListingCreated: (item: GearItem) => void;
   onOpenAuth: () => void;
+  targetWantedRequest?: ApiWantedRequest | null;
 }
 
 interface PhotoItem {
@@ -177,6 +179,7 @@ export const ListEquipmentScreen: React.FC<ListEquipmentScreenProps> = ({
   onBack,
   onListingCreated,
   onOpenAuth,
+  targetWantedRequest = null,
 }) => {
   const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -185,6 +188,13 @@ export const ListEquipmentScreen: React.FC<ListEquipmentScreenProps> = ({
   const [categories, setCategories] = useState<ApiCategory[]>([]);
   const [selectedCategorySlug, setSelectedCategorySlug] = useState<string>('cameras');
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
+
+  // Pre-select category if listing for a wanted request
+  useEffect(() => {
+    if (targetWantedRequest?.categorySlug) {
+      setSelectedCategorySlug(targetWantedRequest.categorySlug);
+    }
+  }, [targetWantedRequest]);
 
   // Form Fields
   const [title, setTitle] = useState('');
@@ -444,10 +454,12 @@ export const ListEquipmentScreen: React.FC<ListEquipmentScreenProps> = ({
               onClick={onBack}
               className="hover:text-[#0d382f] transition-colors cursor-pointer flex items-center gap-1 font-semibold"
             >
-              <span>← Back to Catalog</span>
+              <span>{targetWantedRequest ? '← Back to Wanted Request' : '← Back to Catalog'}</span>
             </button>
             <span className="text-[#cfc4b0]">/</span>
-            <span className="text-[#0d382f] font-bold">Lender Studio</span>
+            <span className="text-[#0d382f] font-bold">
+              {targetWantedRequest ? 'Fulfill Wanted Request' : 'Lender Studio'}
+            </span>
           </nav>
 
           <div className="inline-flex items-center gap-2 bg-[#092620] text-emerald-200 border border-emerald-800 px-3.5 py-1 rounded-full text-xs font-semibold shadow-xs">
@@ -470,10 +482,12 @@ export const ListEquipmentScreen: React.FC<ListEquipmentScreenProps> = ({
                 CAMPUS PEER HARDWARE POOL
               </div>
               <h1 className="font-display text-2xl sm:text-3xl md:text-4xl font-extrabold text-white tracking-tight leading-tight">
-                List Equipment for Campus Rent
+                {targetWantedRequest ? 'List Gear to Offer' : 'List Equipment for Campus Rent'}
               </h1>
               <p className="text-xs sm:text-sm text-emerald-100/90 leading-relaxed max-w-xl font-normal">
-                Put your cameras, audio gear, sensors, dev kits, and tools into circulation. Earn passive student income with zero-deposit trust and verified campus handovers.
+                {targetWantedRequest
+                  ? 'List your equipment on LENDR so you can immediately offer it to this student request. Once published, you will be taken right back to confirm your offer.'
+                  : 'Put your cameras, audio gear, sensors, dev kits, and tools into circulation. Earn passive student income with zero-deposit trust and verified campus handovers.'}
               </p>
             </div>
 
@@ -502,6 +516,34 @@ export const ListEquipmentScreen: React.FC<ListEquipmentScreenProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Wanted Request Target Context Banner */}
+        {targetWantedRequest && (
+          <div className="mb-8 p-5 rounded-2xl bg-[#f5ebe4] border-2 border-[#d96543]/40 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#d96543]/15 text-[#d96543] text-[11px] font-mono font-bold tracking-wide">
+                  <svg className="w-3.5 h-3.5 text-[#d96543]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  OFFERING GEAR FOR WANTED REQUEST
+                </div>
+                <h3 className="text-sm sm:text-base font-bold text-[#0d382f]">
+                  {targetWantedRequest.title}
+                </h3>
+                <p className="text-xs text-stone-600 font-medium">
+                  Requested by <span className="font-bold text-[#0d382f]">{targetWantedRequest.author?.fullName || 'VIT Student'}</span> for {targetWantedRequest.startDate} – {targetWantedRequest.endDate}
+                  {targetWantedRequest.locationBlock ? ` at ${targetWantedRequest.locationBlock}` : ''}
+                </p>
+              </div>
+              <div className="shrink-0 flex items-center">
+                <span className="text-xs bg-white text-[#0d382f] font-semibold px-3 py-1.5 rounded-xl border border-[#ebdccd] shadow-2xs">
+                  Auto-returns to offer modal upon listing
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Authentication Notice if not signed in */}
         {!user && (
@@ -1061,6 +1103,8 @@ export const ListEquipmentScreen: React.FC<ListEquipmentScreenProps> = ({
                   <span className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin"></span>
                   <span>Publishing Listing...</span>
                 </>
+              ) : targetWantedRequest ? (
+                <span>Publish &amp; Return to Offer</span>
               ) : (
                 <span>Publish Equipment Listing</span>
               )}

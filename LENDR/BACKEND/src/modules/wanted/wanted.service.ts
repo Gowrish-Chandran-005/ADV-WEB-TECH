@@ -65,6 +65,14 @@ export class WantedService {
     return this.wantedRepo.listRequests(filters);
   }
 
+  async getMyRequests(userId: string) {
+    return this.wantedRepo.listRequestsByUser(userId);
+  }
+
+  async getMyOffers(userId: string) {
+    return this.wantedRepo.listOffersByUser(userId);
+  }
+
   async updateRequest(id: string, userId: string, input: UpdateWantedRequestInput) {
     return this.wantedRepo.updateRequest(id, userId, input);
   }

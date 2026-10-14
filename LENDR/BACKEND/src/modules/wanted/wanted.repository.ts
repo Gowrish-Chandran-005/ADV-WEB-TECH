@@ -13,6 +13,8 @@ import type {
   WantedPage,
   WantedRepository,
   WantedRequest,
+  WantedRequestWithOffers,
+  UserSentOffer,
   WantedStatus,
   WantedUrgency,
 } from './wanted.types';
@@ -678,5 +680,80 @@ export const postgresWantedRepository: WantedRepository = {
         matchReasons,
       };
     });
+  },
+
+  async listRequestsByUser(userId: string): Promise<WantedRequestWithOffers[]> {
+    const result = await requirePool().query<RequestRow>(
+      `${selectRequestSql} WHERE wr.user_id = $1 ORDER BY wr.created_at DESC`,
+      [userId],
+    );
+    const requests = result.rows.map(mapRequest);
+    if (requests.length === 0) return [];
+
+    const requestIds = requests.map((r) => r.id);
+    const offersResult = await requirePool().query<OfferRow>(
+      `${selectOfferSql} WHERE wo.wanted_request_id = ANY($1::uuid[]) ORDER BY wo.created_at DESC`,
+      [requestIds],
+    );
+    const offers = offersResult.rows.map(mapOffer);
+    const offersByRequestId = new Map<string, WantedOffer[]>();
+    for (const offer of offers) {
+      const list = offersByRequestId.get(offer.wantedRequestId) ?? [];
+      list.push(offer);
+      offersByRequestId.set(offer.wantedRequestId, list);
+    }
+
+    return requests.map((req) => ({
+      ...req,
+      offers: offersByRequestId.get(req.id) ?? [],
+    }));
+  },
+
+  async listOffersByUser(userId: string): Promise<UserSentOffer[]> {
+    interface SentOfferRow extends OfferRow {
+      wanted_request_title: string;
+      wanted_request_start_date: string | Date;
+      wanted_request_end_date: string | Date;
+      wanted_request_urgency: WantedUrgency;
+      wanted_request_status: WantedStatus;
+    }
+
+    const result = await requirePool().query<SentOfferRow>(
+      `SELECT
+         wo.id,
+         wo.wanted_request_id,
+         wo.offerer_user_id,
+         u.full_name AS offerer_name,
+         wo.equipment_id,
+         e.title AS equipment_title,
+         e.image_urls,
+         e.daily_rental_price::text,
+         e.security_deposit::text,
+         wo.message,
+         wo.status,
+         wo.created_at,
+         wo.updated_at,
+         wr.title AS wanted_request_title,
+         wr.start_date AS wanted_request_start_date,
+         wr.end_date AS wanted_request_end_date,
+         wr.urgency AS wanted_request_urgency,
+         wr.status AS wanted_request_status
+       FROM wanted_offers wo
+       JOIN users u ON wo.offerer_user_id = u.id
+       JOIN equipment e ON wo.equipment_id = e.id
+       JOIN wanted_requests wr ON wo.wanted_request_id = wr.id
+       WHERE wo.offerer_user_id = $1
+       ORDER BY wo.created_at DESC`,
+      [userId],
+    );
+
+    return result.rows.map((row) => ({
+      ...mapOffer(row),
+      wantedRequestTitle: row.wanted_request_title,
+      wantedRequestStartDate: formatDate(row.wanted_request_start_date),
+      wantedRequestEndDate: formatDate(row.wanted_request_end_date),
+      wantedRequestUrgency: row.wanted_request_urgency,
+      wantedRequestStatus: row.wanted_request_status,
+    }));
   },
 };

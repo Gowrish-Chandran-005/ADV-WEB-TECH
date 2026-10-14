@@ -80,3 +80,10 @@ export function nextCalendarDate(dateValue: string): string {
   date.setUTCDate(date.getUTCDate() + 1);
   return date.toISOString().slice(0, 10);
 }
+
+export const payBookingSchema = z
+  .object({
+    action: z.enum(['SUCCESS', 'FAIL']).optional().default('SUCCESS'),
+  })
+  .passthrough();
+

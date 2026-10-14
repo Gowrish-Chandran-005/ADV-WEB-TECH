@@ -23,6 +23,9 @@ import { DamageClaimModal } from './components/disputes/DamageClaimModal';
 import { DamageClaimDetailModal } from './components/disputes/DamageClaimDetailModal';
 import { ComplaintsModal } from './components/disputes/ComplaintsModal';
 import { AdminDisputesScreen } from './components/disputes/AdminDisputesScreen';
+import { MyGearHubScreen } from './components/profile/MyGearHubScreen';
+import { MockPaymentModal } from './components/MockPaymentModal';
+import { PaymentConfirmationModal } from './components/PaymentConfirmationModal';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { FavoritesProvider } from './context/FavoritesContext';
 
@@ -31,6 +34,8 @@ import {
   bookingsApi,
   categoriesApi,
   notificationsApi,
+  type ApiWantedRequest,
+  type ApiPaymentRecord,
 } from './services/api';
 import {
   adaptEquipmentToGearItem,
@@ -44,13 +49,14 @@ function AppInner() {
   const { user, isLoading: authLoading, logout } = useAuth();
 
   // Screen state initialized from URL
-  const [currentScreen, setCurrentScreen] = useState<'home' | 'catalog' | 'detail' | 'wanted' | 'list-gear' | 'admin-disputes'>(() => {
+  const [currentScreen, setCurrentScreen] = useState<'home' | 'catalog' | 'detail' | 'wanted' | 'list-gear' | 'admin-disputes' | 'profile'>(() => {
     if (typeof window !== 'undefined') {
       if (window.location.pathname.startsWith('/catalog')) return 'catalog';
       if (window.location.pathname.startsWith('/detail')) return 'detail';
       if (window.location.pathname.startsWith('/wanted')) return 'wanted';
       if (window.location.pathname.startsWith('/list-gear')) return 'list-gear';
       if (window.location.pathname.startsWith('/admin-disputes')) return 'admin-disputes';
+      if (window.location.pathname.startsWith('/profile')) return 'profile';
     }
     return 'home';
   });
@@ -71,9 +77,19 @@ function AppInner() {
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState<number>(0);
   const [targetWantedRequestId, setTargetWantedRequestId] = useState<string | null>(null);
 
+  // Pending offer workflow state for Wanted Board
+  const [pendingOfferWantedRequest, setPendingOfferWantedRequest] = useState<ApiWantedRequest | null>(null);
+  const [newlyCreatedEquipmentIdForOffer, setNewlyCreatedEquipmentIdForOffer] = useState<string | null>(null);
+
   // Filter params for catalog navigation from hero/categories
   const [catalogCategory, setCatalogCategory] = useState<GearCategory | undefined>(undefined);
-  const [catalogQuery, setCatalogQuery] = useState<string>('');
+  const [catalogQuery, setCatalogQuery] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('q') || '';
+    }
+    return '';
+  });
 
   // Modals state
   const [isBookingsDrawerOpen, setIsBookingsDrawerOpen] = useState(false);
@@ -101,30 +117,59 @@ function AppInner() {
   const [isComplaintsModalOpen, setIsComplaintsModalOpen] = useState(false);
   const [complaintsInitialBookingId, setComplaintsInitialBookingId] = useState<string | null>(null);
 
+  // Mock Payment & Confirmation Modals State
+  const [paymentModalBooking, setPaymentModalBooking] = useState<BookingRequest | null>(null);
+  const [confirmedPaymentState, setConfirmedPaymentState] = useState<{
+    booking: BookingRequest;
+    payment: ApiPaymentRecord;
+  } | null>(null);
+
   // ── Browser URL sync with popstate & history.pushState ────────────────────────
-  const navigateToScreen = useCallback((screen: 'home' | 'catalog' | 'detail' | 'wanted' | 'list-gear' | 'admin-disputes') => {
-    setCurrentScreen(screen);
-    if (typeof window !== 'undefined') {
-      let targetPath = '/';
-      if (screen === 'catalog') targetPath = '/catalog';
-      if (screen === 'detail') targetPath = '/detail';
-      if (screen === 'wanted') targetPath = '/wanted';
-      if (screen === 'list-gear') targetPath = '/list-gear';
-      if (screen === 'admin-disputes') targetPath = '/admin-disputes';
-      if (window.location.pathname !== targetPath) {
-        window.history.pushState({ screen }, '', targetPath);
+  const navigateToScreen = useCallback(
+    (
+      screen: 'home' | 'catalog' | 'detail' | 'wanted' | 'list-gear' | 'admin-disputes' | 'profile',
+      query?: string,
+    ) => {
+      setCurrentScreen(screen);
+      const activeQ = query !== undefined ? query : catalogQuery;
+      if (typeof window !== 'undefined') {
+        let targetPath = '/';
+        if (screen === 'catalog') {
+          const trimmed = activeQ.trim();
+          targetPath = trimmed ? `/catalog?q=${encodeURIComponent(trimmed)}` : '/catalog';
+        } else if (screen === 'detail') {
+          targetPath = '/detail';
+        } else if (screen === 'wanted') {
+          targetPath = '/wanted';
+        } else if (screen === 'list-gear') {
+          targetPath = '/list-gear';
+        } else if (screen === 'admin-disputes') {
+          targetPath = '/admin-disputes';
+        } else if (screen === 'profile') {
+          targetPath = '/profile';
+        }
+        if (window.location.pathname + window.location.search !== targetPath) {
+          window.history.pushState({ screen, q: activeQ }, '', targetPath);
+        }
       }
-    }
-  }, []);
+    },
+    [catalogQuery],
+  );
 
   useEffect(() => {
     const handlePopState = (e: PopStateEvent) => {
       if (e.state?.screen) {
         setCurrentScreen(e.state.screen);
+        if (e.state.screen === 'catalog') {
+          const q = e.state.q ?? (new URLSearchParams(window.location.search).get('q') || '');
+          setCatalogQuery(q);
+        }
         return;
       }
       if (window.location.pathname.startsWith('/catalog')) {
         setCurrentScreen('catalog');
+        const params = new URLSearchParams(window.location.search);
+        setCatalogQuery(params.get('q') || '');
       } else if (window.location.pathname.startsWith('/detail')) {
         setCurrentScreen('detail');
       } else if (window.location.pathname.startsWith('/wanted')) {
@@ -133,6 +178,8 @@ function AppInner() {
         setCurrentScreen('list-gear');
       } else if (window.location.pathname.startsWith('/admin-disputes')) {
         setCurrentScreen('admin-disputes');
+      } else if (window.location.pathname.startsWith('/profile')) {
+        setCurrentScreen('profile');
       } else {
         setCurrentScreen('home');
       }
@@ -229,6 +276,12 @@ function AppInner() {
     navigateToScreen('list-gear');
   };
 
+  const handleOpenListGearForOffer = (request: ApiWantedRequest) => {
+    setPendingOfferWantedRequest(request);
+    setNewlyCreatedEquipmentIdForOffer(null);
+    navigateToScreen('list-gear');
+  };
+
   const handleSelectItem = (item: GearItem) => {
     setSelectedItem(item);
     navigateToScreen('detail');
@@ -236,11 +289,25 @@ function AppInner() {
 
   const handleNavigateCatalog = (category?: GearCategory, query?: string) => {
     setCatalogCategory(category);
-    if (query !== undefined) {
-      setCatalogQuery(query);
-    }
-    navigateToScreen('catalog');
+    const activeQ = query !== undefined ? query : catalogQuery;
+    setCatalogQuery(activeQ);
+    navigateToScreen('catalog', activeQ);
   };
+
+  const handleHeaderSearchSubmit = useCallback(
+    (query: string) => {
+      setCatalogQuery(query);
+      navigateToScreen('catalog', query);
+    },
+    [navigateToScreen],
+  );
+
+  const handleHeaderClearSearch = useCallback(() => {
+    setCatalogQuery('');
+    if (currentScreen === 'catalog') {
+      navigateToScreen('catalog', '');
+    }
+  }, [currentScreen, navigateToScreen]);
 
   const handleRequestBooking = (details: {
     durationDays: number;
@@ -431,6 +498,10 @@ function AppInner() {
           navigateToScreen('wanted');
         }}
         onRefreshNotifications={loadNotificationsCount}
+        searchQuery={catalogQuery}
+        onSearchChange={setCatalogQuery}
+        onSearchSubmit={handleHeaderSearchSubmit}
+        onClearSearch={handleHeaderClearSearch}
         user={user}
         avatarInitials={avatarInitials}
         onOpenAuth={() => setIsAuthModalOpen(true)}
@@ -457,6 +528,10 @@ function AppInner() {
               onOpenWantedModal={() => navigateToScreen('wanted')}
               initialCategory={catalogCategory}
               initialQuery={catalogQuery}
+              onQueryChange={(q) => {
+                setCatalogQuery(q);
+                navigateToScreen('catalog', q);
+              }}
               onNavigateHome={() => navigateToScreen('home')}
               onOpenAuth={() => setIsAuthModalOpen(true)}
             />
@@ -479,16 +554,35 @@ function AppInner() {
               onProceedToBooking={handleProceedToBookingFromGear}
               initialSelectedRequestId={targetWantedRequestId}
               onClearInitialRequestId={() => setTargetWantedRequestId(null)}
+              pendingOfferRequest={pendingOfferWantedRequest}
+              preselectedEquipmentId={newlyCreatedEquipmentIdForOffer}
+              onOpenListGearForOffer={handleOpenListGearForOffer}
+              onClearPendingOffer={() => {
+                setPendingOfferWantedRequest(null);
+                setNewlyCreatedEquipmentIdForOffer(null);
+              }}
             />
           )}
 
           {currentScreen === 'list-gear' && (
             <ListEquipmentScreen
-              onBack={() => navigateToScreen('catalog')}
+              targetWantedRequest={pendingOfferWantedRequest}
+              onBack={() => {
+                if (pendingOfferWantedRequest) {
+                  navigateToScreen('wanted');
+                } else {
+                  navigateToScreen('catalog');
+                }
+              }}
               onListingCreated={(newItem) => {
                 setItems((prev) => [newItem, ...prev]);
-                setSelectedItem(newItem);
-                navigateToScreen('detail');
+                if (pendingOfferWantedRequest) {
+                  setNewlyCreatedEquipmentIdForOffer(newItem.id);
+                  navigateToScreen('wanted');
+                } else {
+                  setSelectedItem(newItem);
+                  navigateToScreen('detail');
+                }
               }}
               onOpenAuth={() => setIsAuthModalOpen(true)}
             />
@@ -498,6 +592,32 @@ function AppInner() {
             <AdminDisputesScreen
               currentUser={user}
               onNavigateHome={() => navigateToScreen('catalog')}
+            />
+          )}
+
+          {currentScreen === 'profile' && (
+            <MyGearHubScreen
+              currentUser={user}
+              bookings={bookings}
+              onSelectItem={handleSelectItem}
+              onOpenListGear={handleOpenListGear}
+              onNavigateCatalog={() => navigateToScreen('catalog')}
+              onNavigateWanted={() => navigateToScreen('wanted')}
+              onOpenAuth={() => setIsAuthModalOpen(true)}
+              onProceedToPayment={(booking) => {
+                setPaymentModalBooking(booking);
+              }}
+              onReturnBooking={handleReturnBooking}
+              onOpenConditionReports={(booking) => setConditionReportsModalBooking(booking)}
+              onOpenDamageClaim={(booking) => setDamageClaimModalBooking(booking)}
+              onOpenComplaints={(bookingId) => {
+                setComplaintsInitialBookingId(bookingId || null);
+                setIsComplaintsModalOpen(true);
+              }}
+              onOpenReceipt={(booking, payment) => {
+                setConfirmedPaymentState({ booking, payment });
+              }}
+              onRefreshBookings={loadBookings}
             />
           )}
         </div>
@@ -522,6 +642,10 @@ function AppInner() {
             setComplaintsInitialBookingId(bookingId || null);
             setIsComplaintsModalOpen(true);
           }}
+          onProceedToPayment={(booking) => {
+            setPaymentModalBooking(booking);
+          }}
+          onRefreshBookings={loadBookings}
         />
       )}
 
@@ -591,6 +715,44 @@ function AppInner() {
 
       {isAuthModalOpen && (
         <AuthModal onClose={() => setIsAuthModalOpen(false)} />
+      )}
+
+      {/* Mock Payment Simulation Modal */}
+      {paymentModalBooking && (
+        <MockPaymentModal
+          isOpen={!!paymentModalBooking}
+          booking={paymentModalBooking}
+          onClose={() => setPaymentModalBooking(null)}
+          onPaymentSuccess={(payment, updatedBooking) => {
+            setPaymentModalBooking(null);
+            setBookings((prev) =>
+              prev.map((b) => (b.id === updatedBooking.id ? updatedBooking : b))
+            );
+            loadBookings();
+            setConfirmedPaymentState({
+              booking: updatedBooking,
+              payment,
+            });
+          }}
+        />
+      )}
+
+      {/* Booking & Payment Confirmation Modal */}
+      {confirmedPaymentState && (
+        <PaymentConfirmationModal
+          isOpen={!!confirmedPaymentState}
+          booking={confirmedPaymentState.booking}
+          payment={confirmedPaymentState.payment}
+          onClose={() => setConfirmedPaymentState(null)}
+          onViewBookings={() => {
+            setConfirmedPaymentState(null);
+            setIsBookingsDrawerOpen(true);
+          }}
+          onBackToEquipment={() => {
+            setConfirmedPaymentState(null);
+            navigateToScreen('catalog');
+          }}
+        />
       )}
     </div>
   );

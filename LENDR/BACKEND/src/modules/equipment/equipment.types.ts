@@ -27,6 +27,7 @@ export interface EquipmentFilters {
   page: number;
   pageSize: number;
   query?: string;
+  q?: string;
   category?: string;
   minPrice?: number;
   maxPrice?: number;

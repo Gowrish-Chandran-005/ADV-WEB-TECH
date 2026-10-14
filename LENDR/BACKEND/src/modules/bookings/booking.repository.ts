@@ -16,6 +16,8 @@ import type {
   CreateMaintenanceInput,
   MaintenanceBlock,
   BookingTransitionResult,
+  PaymentRecord,
+  UserPaymentRecord,
 } from './booking.types';
 
 const bookingFields = `
@@ -30,6 +32,7 @@ const bookingFields = `
   b.start_at AS "startAt",
   b.end_at AS "endAt",
   b.status,
+  b.payment_status AS "paymentStatus",
   b.rental_days AS "rentalDays",
   b.daily_rental_price_snapshot AS "dailyRentalPrice",
   b.security_deposit_snapshot AS "securityDeposit",
@@ -39,6 +42,19 @@ const bookingFields = `
   b.return_recorded_at AS "returnRecordedAt",
   b.created_at AS "createdAt",
   b.updated_at AS "updatedAt"`;
+
+const paymentFields = `
+  id,
+  booking_id AS "bookingId",
+  payer_id AS "payerId",
+  amount,
+  currency,
+  provider,
+  provider_reference AS "providerReference",
+  status,
+  metadata,
+  created_at AS "createdAt",
+  updated_at AS "updatedAt"`;
 
 const maintenanceFields = `
   id,
@@ -509,13 +525,26 @@ export const bookingRepository: BookingRepository = {
         const inRentalPeriod = await client.query(
           `SELECT 1 FROM bookings
            WHERE id = $1
-             AND CURRENT_TIMESTAMP >= start_at
+             AND (CURRENT_TIMESTAMP >= start_at OR payment_status = 'PAID')
              AND CURRENT_TIMESTAMP < end_at`,
           [id],
         );
         if ((inRentalPeriod.rowCount ?? 0) === 0) {
           await client.query('ROLLBACK');
           return 'invalid_transition';
+        }
+      }
+
+      if (action === 'complete') {
+        const activeDispute = await client.query(
+          `SELECT id FROM damage_reports
+           WHERE booking_id = $1 AND status NOT IN ('RESOLVED', 'DISMISSED')
+           LIMIT 1`,
+          [id],
+        );
+        if ((activeDispute.rowCount ?? 0) > 0) {
+          await client.query('ROLLBACK');
+          return 'dispute_hold';
         }
       }
 
@@ -778,6 +807,254 @@ export const bookingRepository: BookingRepository = {
         client.release();
       }
     }
+  },
+
+  async processMockPayment(
+    bookingId: string,
+    userId: string,
+    action: 'SUCCESS' | 'FAIL',
+  ): Promise<
+    | { payment: PaymentRecord; booking: Booking; alreadyPaid?: boolean }
+    | 'not_found'
+    | 'forbidden'
+    | 'not_approved'
+    | 'invalid_status'
+  > {
+    const client = await requirePool().connect();
+    try {
+      await client.query('BEGIN');
+
+      // Lock booking for update
+      const bookingRes = await client.query<{
+        id: string;
+        renter_id: string;
+        equipment_id: string;
+        status: BookingStatus;
+        payment_status: 'UNPAID' | 'PENDING' | 'PAID' | 'FAILED';
+        total_price: string;
+        equipment_title: string;
+        owner_user_id: string;
+      }>(
+        `SELECT b.id, b.renter_id, b.equipment_id, b.status, b.payment_status,
+                b.total_price, e.title AS equipment_title, e.owner_user_id
+         FROM bookings b
+         JOIN equipment e ON e.id = b.equipment_id
+         WHERE b.id = $1
+         FOR UPDATE OF b`,
+        [bookingId],
+      );
+
+      const bookingRow = bookingRes.rows[0];
+      if (!bookingRow) {
+        await client.query('ROLLBACK');
+        return 'not_found';
+      }
+
+      // Check renter authorization
+      if (bookingRow.renter_id !== userId) {
+        await client.query('ROLLBACK');
+        return 'forbidden';
+      }
+
+      // Check booking approval status
+      if (bookingRow.status === 'PENDING') {
+        await client.query('ROLLBACK');
+        return 'not_approved';
+      }
+
+      if (['REJECTED', 'CANCELLED', 'COMPLETED'].includes(bookingRow.status)) {
+        await client.query('ROLLBACK');
+        return 'invalid_status';
+      }
+
+      // Check if already successfully paid (idempotency check)
+      const existingSuccessRes = await client.query<PaymentRecord>(
+        `SELECT ${paymentFields}
+         FROM payments p
+         WHERE p.booking_id = $1 AND p.status = 'SUCCESS'
+         ORDER BY p.created_at DESC
+         LIMIT 1`,
+        [bookingId],
+      );
+
+      if (existingSuccessRes.rows[0]) {
+        // Ensure booking payment_status is PAID
+        if (bookingRow.payment_status !== 'PAID') {
+          await client.query(
+            `UPDATE bookings SET payment_status = 'PAID', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+            [bookingId],
+          );
+        }
+        const updatedBooking = await selectBooking(client, bookingId);
+        await client.query('COMMIT');
+        return {
+          payment: existingSuccessRes.rows[0],
+          booking: updatedBooking!,
+          alreadyPaid: true,
+        };
+      }
+
+      const mockReference = `MOCK-TXN-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+
+      if (action === 'SUCCESS') {
+        const paymentRes = await client.query<PaymentRecord>(
+          `INSERT INTO payments
+             (booking_id, payer_id, amount, currency, provider, provider_reference, status, metadata)
+           VALUES ($1, $2, $3, 'INR', 'MOCK', $4, 'SUCCESS', $5)
+           RETURNING ${paymentFields}`,
+          [
+            bookingId,
+            userId,
+            bookingRow.total_price,
+            mockReference,
+            JSON.stringify({ simulatedMode: true, paymentMethod: 'MOCK_UPI_INSTANT' }),
+          ],
+        );
+
+        await client.query(
+          `UPDATE bookings
+           SET payment_status = 'PAID', updated_at = CURRENT_TIMESTAMP
+           WHERE id = $1`,
+          [bookingId],
+        );
+
+        // Notifications
+        await addNotification(
+          client,
+          userId,
+          bookingId,
+          `${bookingId}:payment:success:renter`,
+          'PAYMENT_SUCCESS',
+          'Payment Confirmed',
+          `Your demo payment of ₹${bookingRow.total_price} for ${bookingRow.equipment_title} was confirmed.`,
+        );
+
+        if (bookingRow.owner_user_id !== userId) {
+          await addNotification(
+            client,
+            bookingRow.owner_user_id,
+            bookingId,
+            `${bookingId}:payment:success:owner`,
+            'PAYMENT_RECEIVED',
+            'Payment Received',
+            `Demo payment of ₹${bookingRow.total_price} for ${bookingRow.equipment_title} was confirmed.`,
+          );
+        }
+
+        const updatedBooking = await selectBooking(client, bookingId);
+        await client.query('COMMIT');
+        return {
+          payment: paymentRes.rows[0],
+          booking: updatedBooking!,
+        };
+      } else {
+        // FAIL simulation
+        const paymentRes = await client.query<PaymentRecord>(
+          `INSERT INTO payments
+             (booking_id, payer_id, amount, currency, provider, provider_reference, status, metadata)
+           VALUES ($1, $2, $3, 'INR', 'MOCK', $4, 'FAILED', $5)
+           RETURNING ${paymentFields}`,
+          [
+            bookingId,
+            userId,
+            bookingRow.total_price,
+            mockReference,
+            JSON.stringify({
+              simulatedMode: true,
+              failureReason: 'Simulated payment failure triggered by student',
+            }),
+          ],
+        );
+
+        await client.query(
+          `UPDATE bookings
+           SET payment_status = 'FAILED', updated_at = CURRENT_TIMESTAMP
+           WHERE id = $1`,
+          [bookingId],
+        );
+
+        const updatedBooking = await selectBooking(client, bookingId);
+        await client.query('COMMIT');
+        return {
+          payment: paymentRes.rows[0],
+          booking: updatedBooking!,
+        };
+      }
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  },
+
+  async getPaymentsForBooking(
+    bookingId: string,
+    userId: string,
+  ): Promise<PaymentRecord[] | 'not_found' | 'forbidden'> {
+    const client = requirePool();
+    const bookingRes = await client.query<{
+      id: string;
+      renter_id: string;
+      owner_user_id: string;
+    }>(
+      `SELECT b.id, b.renter_id, e.owner_user_id
+       FROM bookings b
+       JOIN equipment e ON e.id = b.equipment_id
+       WHERE b.id = $1`,
+      [bookingId],
+    );
+
+    const booking = bookingRes.rows[0];
+    if (!booking) return 'not_found';
+    if (booking.renter_id !== userId && booking.owner_user_id !== userId) {
+      return 'forbidden';
+    }
+
+    const paymentsRes = await client.query<PaymentRecord>(
+      `SELECT ${paymentFields}
+       FROM payments p
+       WHERE p.booking_id = $1
+       ORDER BY p.created_at DESC`,
+      [bookingId],
+    );
+    return paymentsRes.rows;
+  },
+
+  async listPaymentsForUser(userId: string): Promise<UserPaymentRecord[]> {
+    const client = requirePool();
+    const result = await client.query<UserPaymentRecord>(
+      `SELECT
+         p.id,
+         p.booking_id AS "bookingId",
+         p.payer_id AS "payerId",
+         p.amount,
+         p.currency,
+         p.provider,
+         p.provider_reference AS "providerReference",
+         p.status,
+         p.metadata,
+         p.created_at AS "createdAt",
+         p.updated_at AS "updatedAt",
+         b.id AS "bookingReference",
+         b.start_at AS "startAt",
+         b.end_at AS "endAt",
+         b.status AS "bookingStatus",
+         b.payment_status AS "bookingPaymentStatus",
+         b.total_price AS "totalPrice",
+         e.id AS "equipmentId",
+         e.title AS "equipmentTitle",
+         e.image_urls AS "imageUrls",
+         u.full_name AS "ownerName"
+       FROM payments p
+       JOIN bookings b ON b.id = p.booking_id
+       JOIN equipment e ON e.id = b.equipment_id
+       JOIN users u ON u.id = e.owner_user_id
+       WHERE p.payer_id = $1
+       ORDER BY p.created_at DESC`,
+      [userId],
+    );
+    return result.rows;
   },
 };
 

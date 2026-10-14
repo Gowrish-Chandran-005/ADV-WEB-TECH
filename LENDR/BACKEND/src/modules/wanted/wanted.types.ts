@@ -44,6 +44,18 @@ export interface WantedOffer {
   updatedAt: Date;
 }
 
+export interface WantedRequestWithOffers extends WantedRequest {
+  offers: WantedOffer[];
+}
+
+export interface UserSentOffer extends WantedOffer {
+  wantedRequestTitle: string;
+  wantedRequestStartDate: string;
+  wantedRequestEndDate: string;
+  wantedRequestUrgency: WantedUrgency;
+  wantedRequestStatus: WantedStatus;
+}
+
 export interface CreateWantedRequestInput {
   title: string;
   description: string;
@@ -140,4 +152,6 @@ export interface WantedRepository {
     | 'equipment_unavailable'
   >;
   findMatchesForRequest(requestId: string): Promise<MatchedEquipmentItem[]>;
+  listRequestsByUser(userId: string): Promise<WantedRequestWithOffers[]>;
+  listOffersByUser(userId: string): Promise<UserSentOffer[]>;
 }

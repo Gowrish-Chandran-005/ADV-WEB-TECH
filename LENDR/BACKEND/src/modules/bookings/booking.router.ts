@@ -10,6 +10,7 @@ import {
   createBookingSchema,
   createMaintenanceSchema,
   rejectBookingSchema,
+  payBookingSchema,
 } from './booking.validation';
 import type { BookingRepository } from './booking.types';
 
@@ -137,9 +138,52 @@ export function createBookingRouter(
       if (result === 'invalid_transition') {
         throw new HttpError(409, 'INVALID_BOOKING_TRANSITION', 'This booking cannot make that state transition.');
       }
+      if (result === 'dispute_hold') {
+        throw new HttpError(
+          409,
+          'ACTIVE_DISPUTE_HOLD',
+          'This booking has an open unresolved damage claim. Resolve the dispute before completing return.',
+        );
+      }
       response.status(200).json({ booking: result.booking });
     });
   }
+
+  router.post('/:id/pay', ...student, async (request, response) => {
+    const body = requireParsed(payBookingSchema, request.body ?? {});
+    const result = await repository.processMockPayment(
+      requireId(request.params.id),
+      request.authUser!.id,
+      body.action ?? 'SUCCESS',
+    );
+    if (result === 'not_found') {
+      throw new HttpError(404, 'BOOKING_NOT_FOUND', 'The booking was not found.');
+    }
+    if (result === 'forbidden') {
+      throw new HttpError(403, 'FORBIDDEN', 'You are not authorized to pay for this booking.');
+    }
+    if (result === 'not_approved') {
+      throw new HttpError(409, 'BOOKING_NOT_APPROVED', 'This booking is pending owner approval and cannot be paid for yet.');
+    }
+    if (result === 'invalid_status') {
+      throw new HttpError(409, 'INVALID_BOOKING_STATUS', 'This booking is not eligible for payment.');
+    }
+    response.status(200).json(result);
+  });
+
+  router.get('/:id/payments', ...student, async (request, response) => {
+    const result = await repository.getPaymentsForBooking(
+      requireId(request.params.id),
+      request.authUser!.id,
+    );
+    if (result === 'not_found') {
+      throw new HttpError(404, 'BOOKING_NOT_FOUND', 'The booking was not found.');
+    }
+    if (result === 'forbidden') {
+      throw new HttpError(403, 'FORBIDDEN', 'You are not authorized to view payments for this booking.');
+    }
+    response.status(200).json({ items: result });
+  });
 
   return router;
 }

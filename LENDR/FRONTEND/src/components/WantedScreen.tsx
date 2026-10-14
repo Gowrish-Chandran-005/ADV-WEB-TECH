@@ -20,6 +20,10 @@ interface WantedScreenProps {
   onProceedToBooking: (item: GearItem, startDate: string, endDate: string) => void;
   initialSelectedRequestId?: string | null;
   onClearInitialRequestId?: () => void;
+  pendingOfferRequest?: ApiWantedRequest | null;
+  preselectedEquipmentId?: string | null;
+  onOpenListGearForOffer?: (request: ApiWantedRequest) => void;
+  onClearPendingOffer?: () => void;
 }
 
 export const WantedScreen: React.FC<WantedScreenProps> = ({
@@ -28,6 +32,10 @@ export const WantedScreen: React.FC<WantedScreenProps> = ({
   onProceedToBooking,
   initialSelectedRequestId = null,
   onClearInitialRequestId,
+  pendingOfferRequest = null,
+  preselectedEquipmentId = null,
+  onOpenListGearForOffer,
+  onClearPendingOffer,
 }) => {
   const [requests, setRequests] = useState<ApiWantedRequest[]>([]);
   const [categories, setCategories] = useState<ApiCategory[]>([]);
@@ -71,6 +79,14 @@ export const WantedScreen: React.FC<WantedScreenProps> = ({
       }
     }
   }, [initialSelectedRequestId, onClearInitialRequestId]);
+
+  // Handle returning from listing gear for a wanted request
+  useEffect(() => {
+    if (pendingOfferRequest) {
+      setOfferingRequest(pendingOfferRequest);
+      setIsOfferModalOpen(true);
+    }
+  }, [pendingOfferRequest]);
 
   // Load requests from backend
   const loadRequests = useCallback(async () => {
@@ -124,8 +140,31 @@ export const WantedScreen: React.FC<WantedScreenProps> = ({
       onOpenAuth();
       return;
     }
+    setDetailRequestId(null);
     setOfferingRequest(req);
     setIsOfferModalOpen(true);
+  };
+
+  const handleOpenListGearFromOffer = () => {
+    if (offeringRequest && onOpenListGearForOffer) {
+      setIsOfferModalOpen(false);
+      onOpenListGearForOffer(offeringRequest);
+    }
+  };
+
+  const handleCloseOfferModal = () => {
+    setIsOfferModalOpen(false);
+    setOfferingRequest(null);
+    if (onClearPendingOffer) {
+      onClearPendingOffer();
+    }
+  };
+
+  const handleOfferSuccess = () => {
+    loadRequests();
+    if (onClearPendingOffer) {
+      onClearPendingOffer();
+    }
   };
 
   return (
@@ -429,12 +468,11 @@ export const WantedScreen: React.FC<WantedScreenProps> = ({
 
       <OfferGearModal
         isOpen={isOfferModalOpen}
-        onClose={() => {
-          setIsOfferModalOpen(false);
-          setOfferingRequest(null);
-        }}
+        onClose={handleCloseOfferModal}
         request={offeringRequest}
-        onSuccess={loadRequests}
+        onSuccess={handleOfferSuccess}
+        onOpenListGear={handleOpenListGearFromOffer}
+        preselectedEquipmentId={preselectedEquipmentId}
       />
 
       <WantedDetailModal

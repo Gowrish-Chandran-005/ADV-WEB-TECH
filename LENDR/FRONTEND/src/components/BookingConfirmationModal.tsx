@@ -100,7 +100,7 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
               Your request is pending approval from <strong>{item.owner.name}</strong>.
             </p>
             <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-xs font-mono text-emerald-900">
-              No payment is processed by this demo.
+              Once approved by the owner, you can complete the mock payment simulation in My Bookings to confirm your rental.
             </div>
           </div>
         ) : (

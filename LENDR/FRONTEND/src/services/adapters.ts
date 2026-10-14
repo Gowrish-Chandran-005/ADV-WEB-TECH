@@ -258,6 +258,7 @@ export function adaptBookingToRequest(
     securityDeposit: Math.round(securityDeposit),
     totalAmount: Math.round(totalPrice),
     status: bookingStatusToFrontend(booking.status),
+    paymentStatus: (booking.paymentStatus?.toLowerCase() as any) || 'unpaid',
     ownerUserId: booking.ownerUserId,
     renterId: booking.renterId,
     returnRecordedAt: booking.returnRecordedAt ?? null,

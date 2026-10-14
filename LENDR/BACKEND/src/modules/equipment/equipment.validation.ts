@@ -73,7 +73,10 @@ const paginationShape = {
 export const browseEquipmentQuerySchema = z
   .object({
     ...paginationShape,
-    q: z.string().trim().min(1).max(200).optional(),
+    q: z.preprocess(
+      (val) => (typeof val === 'string' && val.trim() === '' ? undefined : val),
+      z.string().trim().min(1).max(200).optional(),
+    ),
     category: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(),
     minPrice: z.coerce.number().finite().min(0).max(99_999_999.99).optional(),
     maxPrice: z.coerce.number().finite().min(0).max(99_999_999.99).optional(),

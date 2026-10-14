@@ -11,6 +11,8 @@ interface OfferGearModalProps {
   onClose: () => void;
   request: ApiWantedRequest | null;
   onSuccess: () => void;
+  onOpenListGear?: () => void;
+  preselectedEquipmentId?: string | null;
 }
 
 export const OfferGearModal: React.FC<OfferGearModalProps> = ({
@@ -18,26 +20,34 @@ export const OfferGearModal: React.FC<OfferGearModalProps> = ({
   onClose,
   request,
   onSuccess,
+  onOpenListGear,
+  preselectedEquipmentId,
 }) => {
   const [myListings, setMyListings] = useState<ApiEquipmentListing[]>([]);
   const [selectedEquipmentId, setSelectedEquipmentId] = useState<string>('');
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       setIsLoading(true);
       setError(null);
+      setIsSuccess(false);
       setMessage('');
-      setSelectedEquipmentId('');
+      setSelectedEquipmentId(preselectedEquipmentId || '');
       equipmentApi
         .myListings({ status: 'ACTIVE', pageSize: 50 })
         .then((res) => {
           setMyListings(res.items);
           if (res.items.length > 0) {
-            setSelectedEquipmentId(res.items[0].id);
+            if (preselectedEquipmentId && res.items.some((it) => it.id === preselectedEquipmentId)) {
+              setSelectedEquipmentId(preselectedEquipmentId);
+            } else {
+              setSelectedEquipmentId((prev) => (prev && res.items.some((it) => it.id === prev) ? prev : res.items[0].id));
+            }
           }
         })
         .catch(() => {
@@ -47,15 +57,12 @@ export const OfferGearModal: React.FC<OfferGearModalProps> = ({
           setIsLoading(false);
         });
     }
-  }, [isOpen]);
+  }, [isOpen, preselectedEquipmentId]);
 
   if (!isOpen || !request) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (request.userId) {
-      // Safety check if user attempts self-offer
-    }
     if (!selectedEquipmentId) {
       setError('Please select an active piece of equipment to offer.');
       return;
@@ -68,8 +75,12 @@ export const OfferGearModal: React.FC<OfferGearModalProps> = ({
         equipmentId: selectedEquipmentId,
         message: message.trim() || undefined,
       });
-      onSuccess();
-      onClose();
+      setIsSuccess(true);
+      setTimeout(() => {
+        setIsSuccess(false);
+        onSuccess();
+        onClose();
+      }, 900);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to submit offer. Please try again.';
       setError(msg);
@@ -115,8 +126,9 @@ export const OfferGearModal: React.FC<OfferGearModalProps> = ({
         </div>
 
         {error && (
-          <div className="mt-4 p-3 bg-red-950/80 border border-red-500/50 rounded-xl text-xs text-red-200">
-            {error}
+          <div className="mt-4 p-3.5 bg-rose-950/90 border border-rose-500/60 rounded-xl text-xs text-rose-200 flex items-start gap-2.5">
+            <span className="text-rose-400 font-bold shrink-0">✕</span>
+            <div className="flex-1">{error}</div>
           </div>
         )}
 
@@ -125,65 +137,98 @@ export const OfferGearModal: React.FC<OfferGearModalProps> = ({
             Loading your active listings...
           </div>
         ) : myListings.length === 0 ? (
-          <div className="mt-6 p-6 rounded-2xl bg-[#0d382f]/80 border border-emerald-700/50 text-center space-y-3">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-900/50 flex items-center justify-center mx-auto text-emerald-300">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+          /* Scenario B — Student has no active equipment listings */
+          <div className="mt-6 p-6 sm:p-8 rounded-3xl bg-[#092620]/90 border border-emerald-800/80 text-center space-y-4 shadow-board">
+            <div className="w-14 h-14 rounded-2xl bg-[#0d382f] border border-emerald-500/30 flex items-center justify-center mx-auto text-emerald-300 shadow-sm">
+              <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
               </svg>
             </div>
-            <div className="font-bold text-white text-sm">No Active Equipment Listings Found</div>
-            <p className="text-xs text-emerald-200/80 max-w-sm mx-auto">
-              To offer gear to fellow students on LENDR, you need at least one active listing published in your locker.
-            </p>
-            <div className="pt-2">
+            <div className="space-y-1.5">
+              <h3 className="font-display font-black text-white text-lg sm:text-xl tracking-tight">
+                No gear listed yet
+              </h3>
+              <p className="text-xs sm:text-sm text-emerald-100/80 max-w-sm mx-auto leading-relaxed">
+                Have the equipment this student needs? List it on LENDR first, then come back and make your offer.
+              </p>
+            </div>
+            <div className="pt-3 flex flex-col sm:flex-row items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={onOpenListGear}
+                className="w-full sm:w-auto px-6 py-3 rounded-full bg-[#d96543] hover:bg-[#c85635] text-white font-bold text-xs sm:text-sm transition-all shadow-md hover:shadow-xl cursor-pointer flex items-center justify-center gap-2 btn-magnetic"
+              >
+                <span>+ List Your Gear</span>
+              </button>
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-xl bg-[#14594b] hover:bg-emerald-700 text-xs text-white font-bold transition-all"
+                className="w-full sm:w-auto px-5 py-3 rounded-full bg-[#14594b] hover:bg-[#0c382f] text-emerald-200 hover:text-white font-bold text-xs sm:text-sm transition-colors cursor-pointer border border-emerald-800"
               >
-                Close
+                Cancel
               </button>
             </div>
           </div>
         ) : (
+          /* Scenario A — Student has active equipment listings */
           <form onSubmit={handleSubmit} className="mt-5 space-y-4 text-xs">
             <div>
-              <label className="block font-mono text-emerald-200 mb-2">
-                SELECT FROM YOUR ACTIVE LISTINGS *
-              </label>
-              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                {myListings.map((item) => (
-                  <label
-                    key={item.id}
-                    className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
-                      selectedEquipmentId === item.id
-                        ? 'bg-[#14594b] border-emerald-400 text-white shadow-sm'
-                        : 'bg-[#0d382f]/60 border-emerald-800/60 hover:bg-[#0d382f] text-emerald-100'
-                    }`}
+              <div className="flex items-center justify-between mb-2">
+                <label className="block font-mono text-emerald-200 uppercase">
+                  SELECT FROM YOUR ACTIVE LISTINGS *
+                </label>
+                {onOpenListGear && (
+                  <button
+                    type="button"
+                    onClick={onOpenListGear}
+                    className="text-[11px] font-mono text-emerald-300 hover:text-white underline cursor-pointer"
                   >
-                    <input
-                      type="radio"
-                      name="equipmentListing"
-                      value={item.id}
-                      checked={selectedEquipmentId === item.id}
-                      onChange={() => setSelectedEquipmentId(item.id)}
-                      className="text-[#d96543] focus:ring-0 cursor-pointer"
-                    />
-                    {item.imageUrls[0] && (
-                      <img
-                        src={item.imageUrls[0]}
-                        alt={item.title}
-                        className="w-10 h-10 rounded-lg object-cover bg-emerald-950 shrink-0"
+                    + List another item
+                  </button>
+                )}
+              </div>
+              <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
+                {myListings.map((item) => {
+                  const isSelected = selectedEquipmentId === item.id;
+                  return (
+                    <label
+                      key={item.id}
+                      className={`flex items-center gap-3.5 p-3 rounded-2xl border cursor-pointer transition-all ${
+                        isSelected
+                          ? 'bg-[#14594b] border-emerald-400 text-white shadow-md ring-1 ring-emerald-400/50'
+                          : 'bg-[#0d382f]/60 border-emerald-800/60 hover:bg-[#0d382f] text-emerald-100'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="equipmentListing"
+                        value={item.id}
+                        checked={isSelected}
+                        onChange={() => setSelectedEquipmentId(item.id)}
+                        className="text-[#d96543] focus:ring-0 cursor-pointer accent-[#d96543]"
                       />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <div className="font-bold text-sm truncate">{item.title}</div>
-                      <div className="text-[11px] text-emerald-300 font-mono">
-                        ₹{item.dailyRentalPrice}/day • {item.pickupLocation}
+                      {item.imageUrls && item.imageUrls[0] ? (
+                        <img
+                          src={item.imageUrls[0]}
+                          alt={item.title}
+                          className="w-12 h-12 rounded-xl object-cover bg-emerald-950 shrink-0 border border-emerald-700/50"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-xl bg-emerald-950/80 border border-emerald-800/60 flex items-center justify-center text-emerald-400 shrink-0 text-xs font-mono font-bold">
+                          GEAR
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-sm truncate">{item.title}</div>
+                        <div className="text-[11px] text-emerald-300 font-mono flex items-center gap-2 mt-0.5">
+                          <span className="font-bold text-white">₹{item.dailyRentalPrice}/day</span>
+                          <span className="text-emerald-500">•</span>
+                          <span className="truncate">{item.pickupLocation}</span>
+                        </div>
                       </div>
-                    </div>
-                  </label>
-                ))}
+                    </label>
+                  );
+                })}
               </div>
             </div>
 
@@ -195,26 +240,40 @@ export const OfferGearModal: React.FC<OfferGearModalProps> = ({
                 rows={2}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                placeholder="Mention included batteries, condition, or flexible handover timing..."
+                placeholder="Mention included accessories, condition, or flexible handover timing..."
                 className="w-full bg-[#0d382f] border border-emerald-700/60 rounded-xl px-3.5 py-2 text-white placeholder-emerald-400/40 focus:outline-none focus:border-emerald-400 resize-none"
               />
             </div>
+
+            {isSuccess && (
+              <div className="p-3 bg-emerald-950/90 border border-emerald-500/80 rounded-xl text-xs text-emerald-200 flex items-center gap-2.5">
+                <span className="w-5 h-5 rounded-full bg-emerald-400 text-[#092620] flex items-center justify-center font-bold text-xs shrink-0">✓</span>
+                <span className="font-semibold text-white">Offer sent successfully! Closing...</span>
+              </div>
+            )}
 
             <div className="pt-4 flex items-center justify-end gap-3 border-t border-[#14594b]/60">
               <button
                 type="button"
                 onClick={onClose}
-                disabled={isSubmitting}
+                disabled={isSubmitting || isSuccess}
                 className="px-4 py-2 rounded-xl bg-transparent hover:bg-[#14594b] text-emerald-300 font-semibold transition-colors cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                disabled={isSubmitting || !selectedEquipmentId}
-                className="px-6 py-2.5 rounded-xl bg-[#d96543] hover:bg-[#c85635] text-white font-bold transition-all shadow-md cursor-pointer disabled:opacity-50"
+                disabled={isSubmitting || isSuccess || !selectedEquipmentId}
+                className="px-6 py-2.5 rounded-xl bg-[#d96543] hover:bg-[#c85635] text-white font-bold transition-all shadow-md cursor-pointer disabled:opacity-50 flex items-center gap-2"
               >
-                {isSubmitting ? 'Sending Offer...' : 'Send Gear Offer'}
+                {isSubmitting ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    <span>Sending Offer...</span>
+                  </>
+                ) : (
+                  <span>Send Gear Offer</span>
+                )}
               </button>
             </div>
           </form>

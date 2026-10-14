@@ -43,6 +43,7 @@ import {
 import {
   createEquipmentReviewsRouter,
   createBookingReviewsRouter,
+  createUserReviewsRouter,
 } from './modules/reviews/reviews.router';
 import { reviewsRepository as defaultReviewsRepository } from './modules/reviews/reviews.repository';
 import type { ReviewsRepository } from './modules/reviews/reviews.types';
@@ -87,7 +88,7 @@ export function createApp(
   });
 
   app.use('/api/v1/auth', createAuthRouter(authDependencies));
-  app.use('/api/v1/users', createUsersRouter(authDependencies));
+  app.use('/api/v1/users', createUsersRouter(authDependencies, bookingDependencies));
   app.use('/api/v1/categories', createCategoriesRouter(equipmentDependencies));
   app.use('/api/v1/equipment', createEquipmentRouter(authDependencies, equipmentDependencies));
   app.use('/api/v1/equipment', createFavoriteEquipmentRouter(authDependencies, equipmentDependencies));
@@ -97,6 +98,7 @@ export function createApp(
   app.use('/api/v1/equipment', createEquipmentBookingRouter(authDependencies, bookingDependencies));
   app.use('/api/v1/equipment', createEquipmentReviewsRouter(authDependencies, reviewsDependencies));
   app.use('/api/v1/bookings', createBookingReviewsRouter(authDependencies, reviewsDependencies));
+  app.use('/api/v1/users', createUserReviewsRouter(authDependencies, reviewsDependencies));
   app.use('/api/v1/wanted', createWantedRouter(authDependencies, wantedDependencies));
   app.use('/api/v1/notifications', createNotificationsRouter(authDependencies, notificationDependencies));
   app.use('/api/v1/uploads', createUploadRouter(authDependencies));

@@ -179,6 +179,31 @@ describe('equipment API', () => {
     expect(response.body.pagination).toEqual({ page: 2, pageSize: 5, total: 1, totalPages: 1 });
   });
 
+  it('accepts search query q with whitespace and trims it, and permits empty query string', async () => {
+    let capturedFilters: EquipmentFilters | null = null;
+    const { app, repository } = createHarness();
+    repository.browse = async (filters: EquipmentFilters) => {
+      capturedFilters = filters;
+      return { items: [listing()], page: filters.page, pageSize: filters.pageSize, total: 1 };
+    };
+
+    // Searching with whitespace padding
+    const paddedRes = await request(app).get('/api/v1/equipment?q=%20%20camera%20%20');
+    expect(paddedRes.status).toBe(200);
+    expect(capturedFilters).not.toBeNull();
+    expect(capturedFilters!.q).toBe('camera');
+
+    // Searching with empty query ?q= should succeed (preprocessed to undefined)
+    const emptyRes = await request(app).get('/api/v1/equipment?q=');
+    expect(emptyRes.status).toBe(200);
+    expect(capturedFilters!.q).toBeUndefined();
+
+    // Searching with whitespace only ?q=%20%20 should succeed (preprocessed to undefined)
+    const whitespaceRes = await request(app).get('/api/v1/equipment?q=%20%20');
+    expect(whitespaceRes.status).toBe(200);
+    expect(capturedFilters!.q).toBeUndefined();
+  });
+
   it('requires authentication for listing writes and derives owner from the authenticated user', async () => {
     const { app } = createHarness();
     const unauthenticated = await request(app).post('/api/v1/equipment').send(validCreateBody);

@@ -3,8 +3,8 @@ import type { ApiUser } from '../services/api';
 import { NotificationPopover } from './NotificationPopover';
 
 interface HeaderProps {
-  currentScreen: 'home' | 'catalog' | 'detail' | 'wanted' | 'list-gear' | 'admin-disputes';
-  onNavigate: (screen: 'home' | 'catalog' | 'detail' | 'wanted' | 'list-gear' | 'admin-disputes') => void;
+  currentScreen: 'home' | 'catalog' | 'detail' | 'wanted' | 'list-gear' | 'admin-disputes' | 'profile';
+  onNavigate: (screen: 'home' | 'catalog' | 'detail' | 'wanted' | 'list-gear' | 'admin-disputes' | 'profile') => void;
   bookingsCount: number;
   unreadNotificationsCount?: number;
   onOpenBookings: () => void;
@@ -12,6 +12,11 @@ interface HeaderProps {
   onOpenComplaints?: () => void;
   onSelectWantedRequest?: (requestId: string) => void;
   onRefreshNotifications?: () => void;
+  // Search props
+  searchQuery?: string;
+  onSearchChange?: (query: string) => void;
+  onSearchSubmit?: (query: string) => void;
+  onClearSearch?: () => void;
   // Optional auth props — fully backward-compatible
   user?: ApiUser | null;
   avatarInitials?: string;
@@ -29,12 +34,48 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenComplaints,
   onSelectWantedRequest,
   onRefreshNotifications,
+  searchQuery: searchQueryProp,
+  onSearchChange,
+  onSearchSubmit,
+  onClearSearch,
   user = null,
   avatarInitials = 'AK',
   onOpenAuth,
   onLogout,
 }) => {
   const [isNotificationPopoverOpen, setIsNotificationPopoverOpen] = useState(false);
+  const [internalQuery, setInternalQuery] = useState(searchQueryProp ?? '');
+
+  React.useEffect(() => {
+    if (searchQueryProp !== undefined) {
+      setInternalQuery(searchQueryProp);
+    }
+  }, [searchQueryProp]);
+
+  const activeQuery = searchQueryProp !== undefined ? searchQueryProp : internalQuery;
+
+  const handleInputChange = (val: string) => {
+    setInternalQuery(val);
+    if (onSearchChange) onSearchChange(val);
+  };
+
+  const handleClear = () => {
+    setInternalQuery('');
+    if (onClearSearch) {
+      onClearSearch();
+    } else if (onSearchChange) {
+      onSearchChange('');
+    }
+  };
+
+  const handleSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (onSearchSubmit) {
+      onSearchSubmit(activeQuery);
+    } else {
+      onNavigate('catalog');
+    }
+  };
 
   const handleSelectWantedFromNotif = (requestId: string) => {
     if (onSelectWantedRequest) {
@@ -78,28 +119,49 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Center Search Input */}
-        <div className="hidden md:flex flex-1 max-w-sm mx-3">
-          <div className="w-full flex items-center bg-[#0d382f]/90 rounded-full border border-emerald-700/50 shadow-inner px-3.5 py-1.5 focus-within:border-emerald-400 focus-within:ring-2 focus-within:ring-emerald-400/20 transition-all">
-            <svg className="w-3.5 h-3.5 text-emerald-400/70 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
+        <div className="hidden sm:flex flex-1 max-w-xs md:max-w-sm mx-2 md:mx-3">
+          <form
+            onSubmit={handleSubmit}
+            className="w-full flex items-center bg-[#0d382f]/90 rounded-full border border-emerald-700/50 shadow-inner px-3.5 py-1.5 focus-within:border-emerald-400 focus-within:ring-2 focus-within:ring-emerald-400/20 transition-all"
+          >
+            <button
+              type="button"
+              onClick={() => handleSubmit()}
+              title="Search equipment"
+              aria-label="Execute search"
+              className="text-emerald-400/70 hover:text-emerald-200 mr-2 shrink-0 cursor-pointer focus:outline-none transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </button>
             <input
               type="text"
+              value={activeQuery}
+              onChange={(e) => handleInputChange(e.target.value)}
               placeholder="Search gear, cameras, tools..."
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  onNavigate('catalog');
-                }
-              }}
               className="w-full bg-transparent border-0 p-0 text-xs text-white placeholder-emerald-200/50 focus:outline-none focus:ring-0"
             />
+            {activeQuery && (
+              <button
+                type="button"
+                onClick={handleClear}
+                title="Clear search"
+                aria-label="Clear search query"
+                className="text-emerald-400/70 hover:text-white px-1 cursor-pointer focus:outline-none transition-colors shrink-0"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
             <button
-              onClick={() => onNavigate('catalog')}
-              className="px-2.5 py-0.5 rounded-full bg-[#134e43] text-white text-[11px] font-bold hover:bg-emerald-600 transition-all ml-1 cursor-pointer shadow-xs border border-emerald-500/30"
+              type="submit"
+              className="px-2.5 py-0.5 rounded-full bg-[#134e43] text-white text-[11px] font-bold hover:bg-emerald-600 transition-all ml-1 cursor-pointer shadow-xs border border-emerald-500/30 shrink-0"
             >
               Go
             </button>
-          </div>
+          </form>
         </div>
 
         {/* Action Buttons & Profile */}
@@ -155,6 +217,21 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           )}
 
+          {/* My Hub Pill (when user logged in) */}
+          {user && (
+            <button
+              onClick={() => onNavigate('profile')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all cursor-pointer shadow-xs ${
+                currentScreen === 'profile'
+                  ? 'bg-emerald-500 border-emerald-400 text-white shadow-sm ring-2 ring-emerald-300/40'
+                  : 'bg-[#0d382f] hover:bg-[#134e43] border-emerald-700/60 text-emerald-100'
+              }`}
+              title="Open My Gear Hub & Student Profile"
+            >
+              <span>My Hub</span>
+            </button>
+          )}
+
           {/* My Bookings Pill */}
           <button
             onClick={onOpenBookings}
@@ -208,10 +285,14 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Student Avatar Indicator */}
           <div className="flex items-center pl-1 border-l border-emerald-800">
             {user ? (
-              <div className="relative cursor-pointer group" title={`${user.fullName} • ${user.registrationNumber ?? ''}`}>
+              <div className="relative cursor-pointer group" title={`Open My Gear Hub • ${user.fullName} (${user.registrationNumber ?? ''})`}>
                 <div
-                  onClick={onOpenBookings}
-                  className="w-9 h-9 rounded-full bg-[#14594b] text-white flex items-center justify-center font-bold text-xs ring-2 ring-emerald-500/30"
+                  onClick={() => onNavigate('profile')}
+                  className={`w-9 h-9 rounded-full bg-[#14594b] text-white flex items-center justify-center font-bold text-xs transition-all ${
+                    currentScreen === 'profile'
+                      ? 'ring-2 ring-emerald-300 scale-105 shadow-md'
+                      : 'ring-2 ring-emerald-500/30 hover:ring-emerald-400'
+                  }`}
                 >
                   {avatarInitials}
                 </div>

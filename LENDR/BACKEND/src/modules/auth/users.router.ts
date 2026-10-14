@@ -1,9 +1,11 @@
 import { Router } from 'express';
 import { HttpError } from '../../middleware/http-error';
 import { createDefaultAuthDependencies, type AuthDependencies } from './auth.dependencies';
-import { createAuthenticate } from './auth.middleware';
+import { createAuthenticate, requireStudent } from './auth.middleware';
 import { requireJwtSecret } from './auth.security';
 import { updateProfileBodySchema } from './auth.validation';
+import { bookingRepository } from '../bookings/booking.repository';
+import type { BookingRepository } from '../bookings/booking.types';
 
 function publicUser(user: NonNullable<Express.Request['authUser']>) {
   return {
@@ -23,12 +25,18 @@ function publicUser(user: NonNullable<Express.Request['authUser']>) {
 
 export function createUsersRouter(
   dependencies: AuthDependencies = createDefaultAuthDependencies(),
+  bookings: BookingRepository = bookingRepository,
 ): Router {
   const router = Router();
   const authenticate = createAuthenticate(dependencies);
 
   router.get('/me', authenticate, (request, response) => {
     response.status(200).json({ user: publicUser(request.authUser!) });
+  });
+
+  router.get('/me/payments', authenticate, requireStudent, async (request, response) => {
+    const items = await bookings.listPaymentsForUser(request.authUser!.id);
+    response.status(200).json({ items });
   });
 
   router.patch('/me', authenticate, async (request, response) => {

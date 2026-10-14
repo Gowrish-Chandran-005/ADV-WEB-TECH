@@ -94,6 +94,7 @@ export interface BookingRequest {
   securityDeposit: number;
   totalAmount: number;
   status: 'pending' | 'approved' | 'active' | 'return_requested' | 'completed' | 'cancelled' | 'rejected';
+  paymentStatus?: 'unpaid' | 'pending' | 'paid' | 'failed';
   ownerUserId?: string;
   renterId?: string;
   returnRecordedAt?: string | null;

@@ -71,6 +71,7 @@ export function createEquipmentRouter(
       page: query.page,
       pageSize: query.pageSize,
       query: query.q,
+      q: query.q,
       category: query.category,
       minPrice: query.minPrice,
       maxPrice: query.maxPrice,

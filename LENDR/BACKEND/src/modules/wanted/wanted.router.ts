@@ -90,6 +90,18 @@ export function createWantedRouter(
     response.status(201).json({ request: created });
   });
 
+  // ── 2b. GET /api/v1/wanted/my/requests ── Current student's requests with received offers
+  router.get('/my/requests', ...student, async (request, response) => {
+    const items = await wantedService.getMyRequests(request.authUser!.id);
+    response.status(200).json({ items });
+  });
+
+  // ── 2c. GET /api/v1/wanted/my/offers ── Current student's sent gear offers
+  router.get('/my/offers', ...student, async (request, response) => {
+    const items = await wantedService.getMyOffers(request.authUser!.id);
+    response.status(200).json({ items });
+  });
+
   // ── 3. GET /api/v1/wanted/:id/matches ── Active available equipment matches
   router.get('/:id/matches', async (request, response) => {
     const id = requireId(request.params.id, 'wanted request ID');

@@ -11,7 +11,7 @@
  */
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { authApi, ApiError, type ApiUser } from '../services/api';
+import { authApi, usersApi, ApiError, type ApiUser } from '../services/api';
 
 interface AuthContextValue {
   user: ApiUser | null;
@@ -25,6 +25,12 @@ interface AuthContextValue {
     phone?: string;
   }) => Promise<void>;
   logout: () => Promise<void>;
+  updateProfile: (payload: {
+    fullName?: string;
+    registrationNumber?: string | null;
+    phone?: string | null;
+  }) => Promise<ApiUser>;
+  refreshUser: () => Promise<ApiUser | null>;
   error: string | null;
   clearError: () => void;
 }
@@ -119,10 +125,61 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    if (!authApi.isLoggedIn()) {
+      setUser(null);
+      return null;
+    }
+    try {
+      const { user: u } = await authApi.me();
+      setUser(u);
+      return u;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const updateProfile = useCallback(
+    async (payload: {
+      fullName?: string;
+      registrationNumber?: string | null;
+      phone?: string | null;
+    }) => {
+      setError(null);
+      try {
+        const { user: updated } = await usersApi.updateProfile(payload);
+        setUser(updated);
+        return updated;
+      } catch (err: unknown) {
+        let msg = 'Failed to update profile.';
+        if (err instanceof ApiError && typeof err.message === 'string') {
+          msg = err.message;
+        } else if (err instanceof Error && typeof err.message === 'string') {
+          msg = err.message;
+        }
+        setError(msg);
+        throw err;
+      }
+    },
+    [],
+  );
+
   const clearError = useCallback(() => setError(null), []);
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, logout, error, clearError }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isLoading,
+        login,
+        register,
+        logout,
+        updateProfile,
+        refreshUser,
+        error,
+        clearError,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
